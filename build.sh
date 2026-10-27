@@ -63,6 +63,7 @@ ENT
 # an Apple Development identity if the keychain has one, ad hoc otherwise; none is written into
 # this repository
 IDENTITY=${MUSIC_SIGN:-$(security find-identity -v -p codesigning | sed -n 's/^ *[0-9]*) \([0-9A-F]*\) "Apple Development.*/\1/p' | head -1)}
-codesign --force --options runtime --entitlements "$OUT/MusicToolbox.entitlements" --sign "${IDENTITY:--}" ${MUSIC_KEYCHAIN:+--keychain "$MUSIC_KEYCHAIN"} "$APP"
+KEYCHAIN=(); [[ -n ${MUSIC_KEYCHAIN:-} ]] && KEYCHAIN=(--keychain "$MUSIC_KEYCHAIN")
+codesign --force --options runtime --entitlements "$OUT/MusicToolbox.entitlements" --sign "${IDENTITY:--}" "${KEYCHAIN[@]}" "$APP"
 [[ -n $IDENTITY ]] || echo "note: signed ad hoc; the Keychain asks again after each build"
 echo "built $APP"
