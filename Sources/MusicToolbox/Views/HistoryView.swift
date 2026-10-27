@@ -199,6 +199,7 @@ struct RunView: View {
                         ForEach(Array(f.rows.enumerated()), id: \.offset) { _, r in
                             HStack(spacing: 6) {
                                 Text(Self.fieldLabel(r.field)).foregroundStyle(.secondary).frame(width: 90, alignment: .leading)
+                                if let n = r.name { Text(n).lineLimit(1) }
                                 Text(r.before?.text ?? "").foregroundStyle(.secondary).lineLimit(1)
                                 Image(systemName: "arrow.right").foregroundStyle(.tertiary)
                                 Text(r.after?.text ?? "").lineLimit(1)
@@ -215,7 +216,7 @@ struct RunView: View {
     }
 
     static func fieldLabel(_ f: String) -> String {
-        switch f { case "file_created": "Added"; case "file_replaced": "Replaced"; case "file_removed": "Removed"; default: f }
+        switch f { case "file_created": "Added"; case "file_replaced": "Replaced"; case "file_removed": "Removed"; case "canonical_name": "English name"; default: f }
     }
 
     private func load() async {

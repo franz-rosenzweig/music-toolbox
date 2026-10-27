@@ -172,7 +172,13 @@ struct AlbumView: View {
                         Button(album.hasCover ? "Replace Cover" : "Find a Cover", systemImage: "photo") { coverSheet = true }
                         Button("Look Up Lyrics", systemImage: "text.magnifyingglass") { Task { await run { try await $0.lookupLyrics(album: album.id) } } }
                         if !missing.isEmpty {
-                            Button("Mark \(missing.count) Instrumental") { Task { await run { try await $0.instrumental(album: album.id, true, tracks: missing.map(\.id)) } } }
+                            Button("Mark \(missing.count) Instrumental") {
+                                let ids = missing.map(\.id)
+                                Task {
+                                    await run { try await $0.instrumental(album: album.id, true, tracks: ids) }
+                                    Nav.shared.notify("\(ids.count) tracks marked instrumental") { _ = try? await Config.panel?.instrumental(album: album.id, false, tracks: ids); await load() }
+                                }
+                            }
                         }
                     }
                     .controlSize(.small)
@@ -205,7 +211,10 @@ struct AlbumView: View {
 
     private func send(_ d: DeviceProfile, _ folder: String) async {
         guard let panel = Config.panel else { return }
-        do { try await panel.enqueue(d.id, [folder]); queued = true } catch { self.error = LibraryView.label(error) }
+        do {
+            try await panel.enqueue(d.id, [folder]); queued = true
+            Nav.shared.notify("Queued for the device") { try? await panel.unqueue(d.id, [folder]); queued = false }
+        } catch { self.error = LibraryView.label(error) }
     }
 }
 

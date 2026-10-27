@@ -105,6 +105,7 @@ private enum Picker {
 struct JobRow: View {
     let job: UploadJob
     @State private var store = UploadStore.shared
+    @State private var confirmDiscard = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -143,6 +144,9 @@ struct JobRow: View {
         }
         .padding(16)
         .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 14))
+        .confirmationDialog("Throw away what was sent of “\(job.name)”?", isPresented: $confirmDiscard) {
+            Button("Discard", role: .destructive) { store.discard(job) }
+        }
     }
 
     @ViewBuilder private var icon: some View {
@@ -160,7 +164,7 @@ struct JobRow: View {
             Button("Pause", systemImage: "pause.fill") { store.pause(job) }.labelStyle(.iconOnly).buttonStyle(.borderless)
         case .paused, .failed:
             Button("Resume", systemImage: "play.fill") { store.resume(job) }.labelStyle(.iconOnly).buttonStyle(.borderless)
-            Button("Discard", systemImage: "xmark") { store.discard(job) }.labelStyle(.iconOnly).buttonStyle(.borderless)
+            Button("Discard", systemImage: "xmark") { confirmDiscard = true }.labelStyle(.iconOnly).buttonStyle(.borderless)
         case .done:
             Button("Dismiss", systemImage: "xmark") { store.remove(job) }.labelStyle(.iconOnly).buttonStyle(.borderless)
         case .importing: EmptyView()

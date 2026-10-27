@@ -109,10 +109,7 @@ struct DeviceView: View {
             if let n = session.fixed {
                 HStack(spacing: 8) {
                     Label("\(n) fixed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-                    if let run = session.fixRun, let panel = Config.panel {
-                        Button("Undo…") { NSWorkspace.shared.open(panel.url("/history", query: [URLQueryItem(name: "run", value: run)])) }
-                            .buttonStyle(.link)
-                    }
+                    if let run = session.fixRun { UndoControl(run: run) { session.load() } }
                 }
             }
             if let i = session.issues, i.total > 0 {
@@ -192,10 +189,9 @@ struct DeviceView: View {
                 }
                 .labelStyle(.iconOnly).buttonStyle(.borderless)
             }
-            if item.missing {
-                Button("Remove", systemImage: "xmark") { session.removeFromQueue(item) }.labelStyle(.iconOnly).buttonStyle(.borderless)
-            } else {
-                Text(Fmt.size(item.size)).font(.callout).foregroundStyle(.secondary).monospacedDigit()
+            if !item.missing { Text(Fmt.size(item.size)).font(.callout).foregroundStyle(.secondary).monospacedDigit() }
+            if item.state == .waiting || item.state == .failed {
+                Button("Remove from Queue", systemImage: "xmark") { session.removeFromQueue(item) }.labelStyle(.iconOnly).buttonStyle(.borderless).disabled(session.busy)
             }
         }
         .padding(.horizontal, 14).padding(.vertical, 9)

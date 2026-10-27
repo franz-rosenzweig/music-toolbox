@@ -166,6 +166,8 @@ enum SelfTest {
         for k in ["POST /api/health/split\u{2}", "POST /api/health/variants", "POST /api/health/multi", "POST /api/health/unknown"] {
             if let r = decode(k.replacingOccurrences(of: "\u{2}", with: ""), Api.FixJob.self) { check(r.job > 0, "\(k.dropFirst(5)): job \(r.job), run \(r.run ?? "-")") }
         }
+        if let l = decode("GET /api/health/ignored", [Api.IgnoredItem].self) { check(!l.isEmpty && l.allSatisfy { !$0.title.isEmpty }, "ignored list: \(l.map(\.title))") }
+        if let (c, d) = entry("POST /api/health/unignore"), c == 200, Panel.object(d)["ignored"] as? Bool == false { check(true, "unignore answers") } else { check(false, "unignore") }
         if let (c, d) = entry("POST /api/health/ignore"), c == 200, Panel.object(d)["ignored"] as? Bool == true { check(true, "ignore answers") } else { check(false, "ignore") }
         if let f = decode("GET /api/health/findings\u{2}".replacingOccurrences(of: "\u{2}", with: ""), Api.Findings.self) { check(true, "findings: \(f.findings.count)") }
         // the device's added albums and copy history
@@ -275,8 +277,9 @@ enum SelfTest {
             // later, and back
             await store.later(imports[0])
             check(store.items.first { $0.id == imports[0].id }?.later == true && store.open == openBefore - 1, "Later puts an item off")
-            if let n = store.items.first(where: { $0.id == imports[0].id }) { await store.later(n) }
-            check(store.open == openBefore, "and brings it back")
+            check(Nav.shared.toast?.undo != nil, "Later offers Undo")
+            if let undo = Nav.shared.toast?.undo { Nav.shared.toast = nil; await undo() }
+            check(store.open == openBefore, "and Undo brings it back")
             let recent = try await panel.recentJobs(10)
             check(recent.count >= 3 && recent.contains { $0.kind == "import-mb" }, "recent jobs: \(recent.count)")
         } catch { check(false, "the Needs you flow: \(error)") }
@@ -312,6 +315,12 @@ enum SelfTest {
         let undo = JobFollower()
         undo.follow(try! await panel.undo(run.run, force: false))
         check(await until(20, { undo.job?.done == true }) && undo.lines.first?.hasPrefix("reverted") == true, "undo runs as a job (\(undo.lines.first ?? "-"))")
+        // undo from inside the app: the panel says what it would do, then does it
+        let um = UndoModel(run: run.run)
+        await um.load()
+        if case .preview(let p) = um.phase { check(p.canUndo && !p.labels.isEmpty, "the in-app undo previews first: \(p.labels.joined(separator: ", "))") } else { check(false, "the in-app undo previews first") }
+        await um.confirm(force: false)
+        check(await until(20, { if case .finished = um.phase { true } else { false } }), "and undoes it (\(um.follower.lines.first ?? "-"))")
         let batches = try? await panel.recentJobs(10)
         check((batches?.count ?? 0) >= 1, "Activity lists recent jobs")
 
@@ -361,6 +370,15 @@ enum SelfTest {
         }
         if let page = try? await panel.health("split"), let row = page.rows.first { do { try await panel.ignoreHealth(row.id); check(true, "leave it") } catch { check(false, "ignore: \(error)") } }
         check(((try? await panel.findings())?.findings.count ?? -1) >= 0, "weekly findings")
+        if let page = try? await panel.health("variants"), let row = page.rows.first {
+            do {
+                try await panel.ignoreHealth(row.id)
+                let listed = try await panel.ignored()
+                check(listed.contains { $0.id == row.id }, "what was left alone is listed (\(listed.map(\.title)))")
+                try await panel.unignoreHealth(row.id)
+                check(!((try? await panel.ignored()) ?? [Api.IgnoredItem(id: row.id, kind: "x", title: "x", since: nil)]).contains { $0.id == row.id }, "Bring Back puts it back")
+            } catch { check(false, "leave it and bring it back: \(error)") }
+        }
 
         // pictures of the new screens
         Nav.shared.place = .history
@@ -451,6 +469,19 @@ enum SelfTest {
         await pause(0.5)
         capture("device-fixed")
 
+        // taking an album off the queue can be put back
+        if let first = s.items.first(where: { !$0.missing }) {
+            Nav.shared.toast = nil
+            s.removeFromQueue(first)
+            check(await until(10, { Nav.shared.toast?.message == "Removed from the queue" }), "removing from the queue offers Undo")
+            let gone = (try? await Config.panel?.queue(vol.profile.id).map(\.entry)) ?? []
+            check(!gone.contains(first.entry), "the album is off the queue")
+            if let undo = Nav.shared.toast?.undo { Nav.shared.toast = nil; await undo() }
+            let back = (try? await Config.panel?.queue(vol.profile.id).map(\.entry)) ?? []
+            check(back.contains(first.entry) && back.count == gone.count + 1, "Undo puts it back (\(back.count) entries)")
+            s.load()
+            _ = await until(30, { !s.busy })
+        }
         s.copyQueue()
         check(await until(120, { !s.busy }), "the copy ends")
         check(s.error == nil, "no error copying (\(s.error ?? ""))")

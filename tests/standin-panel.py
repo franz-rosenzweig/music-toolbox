@@ -73,7 +73,7 @@ def sample(prefix, default=None):
 
 
 lock = threading.Lock()
-state = {'lookups': {}, 'english': [], 'corrupted': False, 'dropped': False, 'jobs': {}, 'next_job': 1, 'fixed': set()}
+state = {'ignored': set(), 'lookups': {}, 'english': [], 'corrupted': False, 'dropped': False, 'jobs': {}, 'next_job': 1, 'fixed': set()}
 
 
 def log(line):
@@ -232,6 +232,7 @@ class H(BaseHTTPRequestHandler):
         m = re.match(r'^/api/health/(split|variants|multi|unknown)$', path)
         if m: return self.send(200, sample('GET /api/health/' + m[1]))
         if path == '/api/health/findings': return self.send(200, sample('GET /api/health/findings'))
+        if path == '/api/health/ignored': return self.send(200, [{'id': i, 'kind': i.split(':')[0], 'title': i.split(':', 1)[1], 'since': 1793082427.8} for i in sorted(state['ignored'])])
         m = re.match(r'^/api/devices/([\w-]+)/queue/new$', path)
         if m: return self.send(200, sample('GET /api/devices/{id}/queue/new'))
         m = re.match(r'^/api/devices/([\w-]+)/syncs$', path)
@@ -409,7 +410,7 @@ class H(BaseHTTPRequestHandler):
             jid = state['next_job']; state['next_job'] += 1
             state['jobs'][jid] = {'kind': 'names', 'polls': 0, 'renames': renames}
             log(f'names {json.dumps(renames, ensure_ascii=False)}')
-            return self.send(200, {'job': jid})
+            return self.send(200, {'job': jid, 'run': 'names-test'})
         m = re.match(r'^/api/history/([\w.-]+)/undo$', path)
         if m:
             jid = state['next_job']; state['next_job'] += 1
@@ -433,9 +434,16 @@ class H(BaseHTTPRequestHandler):
             state['jobs'][jid] = {'kind': 'tag-fix', 'polls': 0, 'result': {'run': run, 'summary': '28 field changes across 7 files'}, 'run': run}
             log(f'health {m[1]} {json.dumps(body, ensure_ascii=False)[:200]}')
             return self.send(200, {'job': jid, 'run': run})
+        if path == '/api/health/unignore':
+            body = self.json_body()
+            log(f'unignore {json.dumps(body)}')
+            if body.get('id') not in state['ignored']: return self.send(404, {'error': 'that is not ignored'})
+            state['ignored'].discard(body.get('id'))
+            return self.send(200, {'id': body.get('id'), 'ignored': False})
         if path == '/api/health/ignore':
             body = self.json_body()
             log(f'ignore {json.dumps(body)}')
+            state['ignored'].add(body.get('id') or '')
             return self.send(200, {'id': body.get('id'), 'ignored': True})
         m = re.match(r'^/api/devices/([\w-]+)/queue/new$', path)
         if m: return self.send(200, sample('POST /api/devices/{id}/queue/new'))

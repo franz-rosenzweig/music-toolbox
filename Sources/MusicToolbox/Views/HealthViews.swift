@@ -329,6 +329,11 @@ struct HealthRowView: View {
 
     private func ignore() async {
         guard let panel = Config.panel else { return }
-        do { try await panel.ignoreHealth(row.id); changed() } catch { self.error = LibraryView.label(error) }
+        let id = row.id
+        do {
+            try await panel.ignoreHealth(id)
+            changed()
+            Nav.shared.notify("Left alone") { try? await panel.unignoreHealth(id); changed() }
+        } catch { self.error = LibraryView.label(error) }
     }
 }

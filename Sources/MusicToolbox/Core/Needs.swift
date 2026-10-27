@@ -152,8 +152,10 @@ final class NeedsStore {
     }
 
     func later(_ n: Api.Need) async {
-        try? await Config.panel?.later(n.id, !n.later)
+        let on = !n.later
+        try? await Config.panel?.later(n.id, on)
         await load()
+        if on { Nav.shared.notify("Put off for a day") { [self] in try? await Config.panel?.later(n.id, false); await load() } }
     }
 }
 

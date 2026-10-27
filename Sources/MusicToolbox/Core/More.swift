@@ -39,6 +39,7 @@ extension Api {
 
     struct ChangeRow: Decodable, Hashable, Sendable {
         var field: String
+        var name: String?
         var before: Flex?
         var after: Flex?
     }
@@ -66,6 +67,7 @@ extension Api {
         var createdFiles: [String: Int]?
         var removedFiles: [String: Int]?
         var replacedFiles: [String: Int]?
+        var canonicalNames: [String: Int]?
         var laterRuns: [Later]?
         var conflicts: [Conflict]?
         var note: String?
@@ -80,6 +82,7 @@ extension Api {
             if let n = createdFiles?["to_remove"], n > 0 { out.append("\(n) files removed") }
             if let n = removedFiles?["to_put_back"], n > 0 { out.append("\(n) files restored") }
             if let n = replacedFiles?["to_put_back"], n > 0 { out.append("\(n) originals back") }
+            if let n = canonicalNames?["to_forget"], n > 0 { out.append("\(n) English names forgotten") }
             out.append("\(musicFilesDeleted ?? 0) music files deleted")
             return out
         }
@@ -142,6 +145,13 @@ extension Api {
         var total: Int
         var offset: Int
         var rows: [HealthRow]
+    }
+
+    struct IgnoredItem: Decodable, Identifiable, Hashable, Sendable {
+        var id: String
+        var kind: String
+        var title: String
+        var since: Double?
     }
 
     struct Finding: Decodable, Identifiable, Hashable, Sendable {
@@ -275,6 +285,13 @@ extension Panel {
     func ignoreHealth(_ id: String) async throws {
         let _: Api.Ignored = try await call("POST", "/api/health/ignore", json: ["id": id])
     }
+
+    /// Brings back what "Leave it" hid.
+    func unignoreHealth(_ id: String) async throws {
+        let _: Api.Ignored = try await call("POST", "/api/health/unignore", json: ["id": id])
+    }
+
+    func ignored() async throws -> [Api.IgnoredItem] { try await call("GET", "/api/health/ignored") }
 
     func findings() async throws -> Api.Findings { try await call("GET", "/api/health/findings") }
 

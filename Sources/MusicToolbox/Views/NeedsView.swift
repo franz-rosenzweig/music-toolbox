@@ -5,6 +5,7 @@ import AppKit
 struct NeedsView: View {
     @State private var store = NeedsStore.shared
     @Bindable private var nav = Nav.shared
+    @State private var showIgnored = false
 
     private var selected: Api.Need? { store.items.first { $0.id == nav.needsSelection } ?? store.items.first { $0.open && !$0.later } ?? store.items.first }
 
@@ -42,10 +43,12 @@ struct NeedsView: View {
         }
         .navigationTitle("Needs You")
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button("Left Alone", systemImage: "eye.slash") { showIgnored = true }
                 Button("Reload", systemImage: "arrow.clockwise") { Task { await store.load() } }
             }
         }
+        .sheet(isPresented: $showIgnored) { IgnoredSheet { showIgnored = false } }
         .overlay(alignment: .top) {
             if let e = store.error { Label(e, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange).padding(8).background(.regularMaterial, in: Capsule()).padding(.top, 8) }
         }
@@ -386,13 +389,11 @@ struct JobCard: View {
                     else { Image(systemName: j.done ? "checkmark.circle.fill" : "exclamationmark.triangle.fill").foregroundStyle(j.done ? Color.green : Color.red) }
                     Text(j.title).font(.headline).lineLimit(1)
                     Spacer()
-                    if !j.running, let run = j.run, let panel = Config.panel {
-                        Button("Undo…") { NSWorkspace.shared.open(panel.url("/history", query: [URLQueryItem(name: "run", value: run)])) }.buttonStyle(.link)
-                    }
                 }
                 if let p = j.progress, j.running { ProgressView(value: p) }
                 ForEach(follower.lines, id: \.self) { Text($0).foregroundStyle(.secondary) }
                 if let e = j.error { Text(e).foregroundStyle(.red) }
+                if !j.running, j.kind != "undo", let run = j.run, j.done || !(j.result.isEmpty) { UndoControl(run: run) { Task { await NeedsStore.shared.load() } }.id(run) }
                 if j.running, !j.log.isEmpty { Text(j.log.split(separator: "\n").suffix(4).joined(separator: "\n")).font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary) }
             }
             .padding(16)
@@ -465,5 +466,60 @@ struct NamesView: View {
             let id = try await panel.rename(picked)
             job.follow(id) { _ in Task { await NeedsStore.shared.load() } }
         } catch { self.error = (error as? PanelError)?.label ?? error.localizedDescription }
+    }
+}
+
+/// What "Leave it" and "They're different" hid, with a way to bring each back.
+struct IgnoredSheet: View {
+    var done: () -> Void
+    @State private var items: [Api.IgnoredItem] = []
+    @State private var loaded = false
+    @State private var error: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Left Alone").font(.title3.weight(.semibold))
+                Spacer()
+                Button("Close") { done() }
+            }
+            if let error { Label(error, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange) }
+            if loaded && items.isEmpty { Text("Nothing").foregroundStyle(.secondary).frame(maxWidth: .infinity, minHeight: 100) }
+            ScrollView {
+                VStack(spacing: 0) {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { i, it in
+                        if i > 0 { Divider() }
+                        HStack {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(it.title).lineLimit(1)
+                                Text(Self.kind(it.kind)).font(.callout).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button("Bring Back") { Task { await bringBack(it) } }
+                        }
+                        .padding(.horizontal, 12).padding(.vertical, 8)
+                    }
+                }
+                .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 12))
+            }
+        }
+        .padding(22)
+        .frame(width: 480, height: 420)
+        .task { await load() }
+    }
+
+    static func kind(_ k: String) -> String {
+        switch k { case "split": "Split album"; case "variants": "Artist spelling"; case "multi": "Folder with several albums"; default: "Files with no tags" }
+    }
+
+    private func load() async {
+        guard let panel = Config.panel else { return }
+        do { items = try await panel.ignored(); error = nil } catch { self.error = LibraryView.label(error) }
+        loaded = true
+    }
+
+    private func bringBack(_ it: Api.IgnoredItem) async {
+        guard let panel = Config.panel else { return }
+        do { try await panel.unignoreHealth(it.id); await load(); await NeedsStore.shared.load() } catch { self.error = LibraryView.label(error) }
     }
 }

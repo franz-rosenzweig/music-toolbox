@@ -186,6 +186,10 @@ final class DeviceSession {
         Task {
             try? await panel.unqueue(device, [item.entry])
             items.removeAll { $0.entry == item.entry }
+            Nav.shared.notify("Removed from the queue") { [self] in
+                try? await panel.enqueue(device, [item.entry])
+                if let q = try? await panel.queue(device) { items = q.map(Item.init) }
+            }
         }
     }
 
@@ -364,9 +368,17 @@ final class DeviceSession {
     func queueNewAlbums() {
         guard let panel = Config.panel, profile.hasQueue else { return }
         Task {
-            _ = try? await panel.queueAllNew(profile.id)
+            let added = (try? await panel.queueAllNew(profile.id)) ?? []
             if let q = try? await panel.queue(profile.id) { items = q.map(Item.init) }
             newAlbums = try? await panel.queueNew(profile.id)
+            let device = profile.id
+            if !added.isEmpty {
+                Nav.shared.notify("Queued \(added.count) albums") { [self] in
+                    try? await panel.unqueue(device, added)
+                    if let q = try? await panel.queue(device) { items = q.map(Item.init) }
+                    newAlbums = try? await panel.queueNew(device)
+                }
+            }
         }
     }
 

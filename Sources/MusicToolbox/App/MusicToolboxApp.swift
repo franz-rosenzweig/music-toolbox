@@ -52,6 +52,7 @@ final class Nav {
     var choose = false
     var needsSelection: String?
     var focusSearch = false
+    var toast: Toast?
     var sessions: [String: DeviceSession] = [:]
 
     func session(for v: Volume) -> DeviceSession {

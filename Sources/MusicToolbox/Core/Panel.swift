@@ -118,7 +118,7 @@ final class Panel: @unchecked Sendable {
     }
 
     func unqueue(_ device: String, _ entries: [String]) async throws {
-        let _: Api.Ignored = try await call("DELETE", "/api/devices/\(device)/queue", json: ["entries": entries])
+        let _: Api.Ignored = try await call("DELETE", "/api/devices/\(device)/queue", query: entries.map { URLQueryItem(name: "entry", value: $0) })
     }
 
     func issues(_ device: String, scope: String = "library", limit: Int = 30) async throws -> Api.Issues {

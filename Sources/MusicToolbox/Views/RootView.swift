@@ -60,6 +60,7 @@ struct RootView: View {
             }
         }
         .safeAreaInset(edge: .bottom) { PlayerBar() }
+        .overlay(alignment: .bottom) { ToastView().padding(.bottom, Player.shared.track == nil ? 0 : 70) }
         .task {
             while !Task.isCancelled {
                 await needs.load()
