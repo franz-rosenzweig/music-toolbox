@@ -1,0 +1,3 @@
+#!/bin/sh
+# The real server has GNU du (du -sb); this Mac's du has no -b. coreutils' gdu stands in.
+exec /opt/homebrew/bin/gdu "$@"

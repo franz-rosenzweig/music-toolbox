@@ -1,0 +1,8 @@
+#!/bin/sh
+# Stands in for ssh in the self-test: the "server" is this Mac. Options and the host are dropped;
+# one argument is a shell command (ssh_run), several are a program (rsync's --server end).
+PATH="$(cd "$(dirname "$0")" && pwd)/bin:$PATH"
+while [ "$1" = "-o" ]; do shift 2; done
+shift
+if [ $# -eq 1 ]; then exec /bin/sh -c "$1"; fi
+exec "$@"
