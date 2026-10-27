@@ -8,12 +8,14 @@ struct SettingsForm: View {
     @AppStorage("panelUser") private var storedUser = ""
     @AppStorage("sshTarget") private var storedSSH = ""
     @AppStorage("musicPath") private var storedMusic = ""
+    @AppStorage("ripsFolder") private var storedRips = ""
 
     @State private var url = ""
     @State private var user = ""
     @State private var password = ""
     @State private var ssh = ""
     @State private var music = ""
+    @State private var rips = ""
     @State private var panelResult: String?
     @State private var sshResult: String?
     @State private var testing = false
@@ -31,6 +33,9 @@ struct SettingsForm: View {
                 TextField("Music folder", text: $music, prompt: Text("/srv/media/music"))
                 if let r = sshResult { status(r, ok: r == "Connected") }
             }
+            Section("Rip") {
+                TextField("Rips folder", text: $rips, prompt: Text("~/Music/CD Rips"))
+            }
             Section {
                 HStack {
                     Spacer()
@@ -45,7 +50,7 @@ struct SettingsForm: View {
         .formStyle(.grouped)
         .onAppear {
             url = storedURL; user = storedUser; password = Keychain.get("panel") ?? ""
-            ssh = storedSSH; music = storedMusic
+            ssh = storedSSH; music = storedMusic; rips = storedRips
         }
     }
 
@@ -57,7 +62,7 @@ struct SettingsForm: View {
         testing = true
         defer { testing = false }
         Keychain.set(password, for: "panel")
-        storedURL = url; storedUser = user; storedSSH = ssh; storedMusic = music
+        storedURL = url; storedUser = user; storedSSH = ssh; storedMusic = music; storedRips = rips
         panelResult = nil
         sshResult = nil
         if let panel = Config.panel {

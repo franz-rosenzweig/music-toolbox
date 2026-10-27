@@ -154,6 +154,8 @@ final class DeviceStore {
             let v = try? url.resourceValues(forKeys: Set(keys))
             let marker = Marker.read(at: url)
             if marker == nil, dev == rootDev || v?.volumeIsInternal == true { return nil }
+            // an audio CD is for the Rip screen, not a place to copy music to
+            if marker == nil, FileManager.default.fileExists(atPath: url.appendingPathComponent(".TOC.plist").path) { return nil }
             return Volume(url: url, name: v?.volumeName ?? url.lastPathComponent,
                           total: Int64(v?.volumeTotalCapacity ?? 0), free: Int64(v?.volumeAvailableCapacity ?? 0), marker: marker)
         }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }

@@ -25,6 +25,10 @@ enum SelfTest {
         window?.center()
         Player.shared.player.volume = 0
         Nav.shared.place = .upload      // the Needs you page would poll the stand-in while the tests count its answers
+        if env["MUSIC_TEST_RIP"] != nil {
+            await rip()
+            return finish()
+        }
         if let samples = env["MUSIC_TEST_SAMPLES"] {
             self.samples(samples)
             return finish()
@@ -40,6 +44,49 @@ enum SelfTest {
             await real(vol)
         }
         finish()
+    }
+
+    // MARK: ripping a CD
+
+    /// The disc ID and the MusicBrainz answer are checked from files saved from a real disc (the fixtures);
+    /// when a disc is in the drive and MUSIC_TEST_RIP_DEST names a folder, it is ripped for real and sent to the panel.
+    static func rip() async {
+        let fixtures = URL(fileURLWithPath: env["MUSIC_TEST_FIXTURES"] ?? "tests/fixtures")
+        guard let toc = try? Data(contentsOf: fixtures.appendingPathComponent("audio-cd-toc.plist")),
+              let mb = try? Data(contentsOf: fixtures.appendingPathComponent("musicbrainz-discid.json")) else { return check(false, "the fixtures are there") }
+        var files: [Int: (URL, Int64)] = [:]
+        for n in 1...7 { files[n] = (URL(fileURLWithPath: "/dev/null/\(n) Audio Track.aiff"), 1000) }
+        guard let disc = Disc.parse(toc: toc, volume: URL(fileURLWithPath: "/Volumes/Audio CD"), files: files) else { return check(false, "the table of contents reads") }
+        check(disc.id == "ff7_Sk1lcCL9UzNClaChCRxHKh4-", "the disc ID from the table of contents: \(disc.id)")
+        check(disc.tracks.count == 7 && disc.tracks[0].frames == 25751 && abs(disc.tracks[0].seconds - 343.35) < 0.01, "track 1 is \(String(format: "%.2f", disc.tracks[0].seconds)) s (MusicBrainz says 343.346)")
+        check(disc.leadout == 155422 && disc.totalSeconds > 2070 && disc.totalSeconds < 2071, "the disc is \(Fmt.clock(Int(disc.totalSeconds))) long")
+        let releases = MusicBrainz.parse(mb, discID: disc.id, trackCount: 7)
+        check(releases.count == 3 && releases[0].title == "Vol.1" && releases[0].artist == "Angine de Poitrine" && releases[0].tracks.count == 7, "MusicBrainz knows it: \(releases.map(\.summary))")
+        check(releases[0].tracks[0].title == "Sherpa" && releases[0].tracks[0].recordingID != nil && releases[0].tracks[0].trackID != nil && !releases[0].artistIDs.isEmpty, "with the track and artist IDs it needs for tags")
+        check(Ripper.clean("AC/DC: Back in Black?") == "AC-DC- Back in Black", "folder names are made safe (\(Ripper.clean("AC/DC: Back in Black?")))")
+
+        guard let real = Disc.find() else { return log("INFO no disc in the drive: the real disc is skipped") }
+        let r = Ripper.shared
+        await r.scan()
+        check(r.disc?.id == real.id, "the app finds the disc in the drive (\(real.id))")
+        check(await until(40, { r.activity == .idle && (!r.releases.isEmpty || r.error != nil) }), "it asks MusicBrainz")
+        check(!r.releases.isEmpty, "and gets \(r.releases.count) releases: \(r.release?.summary ?? r.error ?? "-")")
+        check(r.items.allSatisfy { !$0.title.hasPrefix("Track ") } || r.releases.isEmpty, "the tracks have their titles (\(r.items.map(\.title).prefix(3)))")
+        check(r.cover != nil || r.release?.hasCover == false, "and the cover art (\(r.cover.map { "\($0.count / 1000) KB" } ?? "none"))")
+        Nav.shared.place = .rip
+        await pause(2.0)
+        capture("rip")
+        guard let dest = env["MUSIC_TEST_RIP_DEST"] else { return log("INFO MUSIC_TEST_RIP_DEST not set: the disc was looked up, not ripped") }
+        UserDefaults.standard.set(dest, forKey: "ripsFolder")
+        let store = UploadStore.shared
+        store.jobs.removeAll()
+        r.rip(andUpload: true)
+        check(await until(900, { r.activity != .ripping }), "the rip ends")
+        check(r.error == nil && r.items.allSatisfy { $0.state == .done }, "all \(r.items.count) tracks ripped (\(r.error ?? "no error"))")
+        guard let job = store.jobs.first else { return check(false, "an upload job exists") }
+        check(await until(180, { job.state == .done || job.state == .failed }), "the upload ends")
+        check(job.state == .done, "and the panel took it (\(job.state), \(job.note), \(job.files.count) files)")
+        if let f = r.folder { log("INFO ripped to \(f.path)") }
     }
 
     // MARK: the panel's real answers

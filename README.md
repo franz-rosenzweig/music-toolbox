@@ -8,6 +8,11 @@ library onto players. Not a music player.
 - **Upload**: folders and files, by drag and drop or the Add menu. Chunked and resumable (the panel's
   `/upload` protocol, with a checksum per file); pausing, a dropped connection or quitting the app all
   carry on where they stopped.
+- **Rip**: an audio CD in the drive is recognised through MusicBrainz (disc ID from its table of contents),
+  titles, artist, year and cover filled in (editable; a menu picks between releases). Each track is copied
+  off the disc, encoded to FLAC with `flac --verify`, tagged with MusicBrainz IDs and the cover, and saved in
+  `~/Music/CD Rips/Artist/Album/` (Settings changes the folder); "Rip and Upload" then sends it through the
+  upload, where the panel's beets matches it. Needs `flac` (`brew install flac`).
 - **Library**: search, filters and sort, the lyrics coverage, an album's covers and lyrics (read, paste,
   remove, instrumental, look up), send it to a device, and play a track to see what it is.
 - **History** and **Activity**: every change with an undo that says what it would do first, and the
@@ -40,6 +45,7 @@ built into the app.
 ## Test
 
 ```sh
+RIP_REAL=1 ./selftest.sh WORK --rip   # a real rip of the disc in the drive into WORK/rips, then on to the stand-in
 PANEL_SAMPLES=FILE ./selftest.sh      # also replay the panel's recorded answers for History, lyrics, covers, health
 ./selftest.sh [WORK]                  # stand-in panel, pretend server, an exFAT disk image as the player
 ./selftest.sh WORK --real user@host   # instead: one small album from the real library, read-only there

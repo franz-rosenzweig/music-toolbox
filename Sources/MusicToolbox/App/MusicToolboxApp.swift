@@ -37,6 +37,7 @@ struct MusicToolboxApp: App {
 
 enum Place: Hashable {
     case needs
+    case rip
     case history
     case activity
     case upload

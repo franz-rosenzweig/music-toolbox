@@ -1,0 +1,1333 @@
+{
+ "offsets": [
+  150,
+  25901,
+  44286,
+  80047,
+  108996,
+  128017,
+  148306
+ ],
+ "id": "ff7_Sk1lcCL9UzNClaChCRxHKh4-",
+ "releases": [
+  {
+   "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+   "title": "Vol.1",
+   "barcode": "628425432406",
+   "media": [
+    {
+     "position": 1,
+     "discs": [
+      {
+       "sectors": 155422,
+       "offset-count": 7,
+       "id": "ff7_Sk1lcCL9UzNClaChCRxHKh4-",
+       "offsets": [
+        150,
+        25901,
+        44286,
+        80047,
+        108996,
+        128017,
+        148306
+       ]
+      }
+     ],
+     "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+     "id": "5bc08723-876c-47f8-9426-10f0ffb64a33",
+     "track-count": 7,
+     "track-offset": 0,
+     "title": "",
+     "tracks": [
+      {
+       "number": "1",
+       "recording": {
+        "video": false,
+        "length": 343346,
+        "disambiguation": "",
+        "title": "Sherpa",
+        "first-release-date": "2024-06-01",
+        "id": "bd953e77-f7df-467b-b1cf-e42d3eec5968",
+        "artist-credit": [
+         {
+          "name": "Angine de Poitrine",
+          "joinphrase": "",
+          "artist": {
+           "type": "Group",
+           "sort-name": "Angine de Poitrine",
+           "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+           "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+           "name": "Angine de Poitrine",
+           "disambiguation": "",
+           "country": "CA"
+          }
+         }
+        ]
+       },
+       "artist-credit": [
+        {
+         "artist": {
+          "country": "CA",
+          "disambiguation": "",
+          "name": "Angine de Poitrine",
+          "type": "Group",
+          "sort-name": "Angine de Poitrine",
+          "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+          "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+         },
+         "name": "Angine de Poitrine",
+         "joinphrase": ""
+        }
+       ],
+       "position": 1,
+       "id": "8bce1898-20fd-41b2-8122-dc59b76c744d",
+       "length": 343346,
+       "title": "Sherpa"
+      },
+      {
+       "length": 245133,
+       "title": "Tohogd",
+       "position": 2,
+       "id": "8636e508-4c1d-4975-9f02-3601ae62d11b",
+       "recording": {
+        "first-release-date": "2024-06-14",
+        "id": "3edaf31f-c7a8-4ceb-a541-efeeb7ad5021",
+        "artist-credit": [
+         {
+          "artist": {
+           "disambiguation": "",
+           "name": "Angine de Poitrine",
+           "type": "Group",
+           "sort-name": "Angine de Poitrine",
+           "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+           "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+           "country": "CA"
+          },
+          "joinphrase": "",
+          "name": "Angine de Poitrine"
+         }
+        ],
+        "video": false,
+        "length": 245133,
+        "disambiguation": "",
+        "title": "Tohogd"
+       },
+       "number": "2",
+       "artist-credit": [
+        {
+         "artist": {
+          "country": "CA",
+          "type": "Group",
+          "sort-name": "Angine de Poitrine",
+          "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+          "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+          "disambiguation": "",
+          "name": "Angine de Poitrine"
+         },
+         "name": "Angine de Poitrine",
+         "joinphrase": ""
+        }
+       ]
+      },
+      {
+       "id": "ca7c7394-ba09-4154-8678-754794204973",
+       "position": 3,
+       "title": "Tamebsz",
+       "length": 476813,
+       "artist-credit": [
+        {
+         "artist": {
+          "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+          "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+          "type": "Group",
+          "sort-name": "Angine de Poitrine",
+          "name": "Angine de Poitrine",
+          "disambiguation": "",
+          "country": "CA"
+         },
+         "name": "Angine de Poitrine",
+         "joinphrase": ""
+        }
+       ],
+       "recording": {
+        "title": "Tamebsz",
+        "length": 476813,
+        "video": false,
+        "disambiguation": "",
+        "id": "330c8e87-41bd-47bc-96ab-33fea914c63d",
+        "artist-credit": [
+         {
+          "name": "Angine de Poitrine",
+          "joinphrase": "",
+          "artist": {
+           "disambiguation": "",
+           "name": "Angine de Poitrine",
+           "sort-name": "Angine de Poitrine",
+           "type": "Group",
+           "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+           "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+           "country": "CA"
+          }
+         }
+        ],
+        "first-release-date": "2024-06-14"
+       },
+       "number": "3"
+      },
+      {
+       "number": "4",
+       "recording": {
+        "length": 385986,
+        "video": false,
+        "disambiguation": "",
+        "title": "Ababa Hotel",
+        "first-release-date": "2024-06-14",
+        "id": "93dcfd88-d4b3-4362-b7f7-2e2dcc843185",
+        "artist-credit": [
+         {
+          "name": "Angine de Poitrine",
+          "joinphrase": "",
+          "artist": {
+           "sort-name": "Angine de Poitrine",
+           "type": "Group",
+           "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+           "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+           "name": "Angine de Poitrine",
+           "disambiguation": "",
+           "country": "CA"
+          }
+         }
+        ]
+       },
+       "artist-credit": [
+        {
+         "artist": {
+          "name": "Angine de Poitrine",
+          "disambiguation": "",
+          "sort-name": "Angine de Poitrine",
+          "type": "Group",
+          "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+          "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+          "country": "CA"
+         },
+         "joinphrase": "",
+         "name": "Angine de Poitrine"
+        }
+       ],
+       "length": 385986,
+       "title": "Ababa Hotel",
+       "position": 4,
+       "id": "b6090899-eaf0-40b4-9e8f-fec13a5181a8"
+      },
+      {
+       "title": "Sahardnieh",
+       "length": 253613,
+       "id": "d9dbf835-87dd-4f6a-9e27-45581d9e07ff",
+       "position": 5,
+       "artist-credit": [
+        {
+         "artist": {
+          "country": "CA",
+          "name": "Angine de Poitrine",
+          "disambiguation": "",
+          "sort-name": "Angine de Poitrine",
+          "type": "Group",
+          "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+          "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc"
+         },
+         "joinphrase": "",
+         "name": "Angine de Poitrine"
+        }
+       ],
+       "number": "5",
+       "recording": {
+        "first-release-date": "2024-06-14",
+        "id": "2ae96cf8-a953-4b59-8dbc-b39a2bbf477d",
+        "artist-credit": [
+         {
+          "joinphrase": "",
+          "name": "Angine de Poitrine",
+          "artist": {
+           "country": "CA",
+           "disambiguation": "",
+           "name": "Angine de Poitrine",
+           "sort-name": "Angine de Poitrine",
+           "type": "Group",
+           "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+           "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+          }
+         }
+        ],
+        "length": 253613,
+        "video": false,
+        "disambiguation": "",
+        "title": "Sahardnieh"
+       }
+      },
+      {
+       "artist-credit": [
+        {
+         "name": "Angine de Poitrine",
+         "joinphrase": "",
+         "artist": {
+          "disambiguation": "",
+          "name": "Angine de Poitrine",
+          "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+          "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+          "sort-name": "Angine de Poitrine",
+          "type": "Group",
+          "country": "CA"
+         }
+        }
+       ],
+       "number": "6",
+       "recording": {
+        "title": "L’Aberek",
+        "length": 270520,
+        "video": false,
+        "disambiguation": "",
+        "id": "7a90dfba-e95b-4439-88c6-01ada03e16b0",
+        "artist-credit": [
+         {
+          "name": "Angine de Poitrine",
+          "joinphrase": "",
+          "artist": {
+           "type": "Group",
+           "sort-name": "Angine de Poitrine",
+           "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+           "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+           "disambiguation": "",
+           "name": "Angine de Poitrine",
+           "country": "CA"
+          }
+         }
+        ],
+        "first-release-date": "2024-06-14"
+       },
+       "id": "04e0ffdf-bc32-4e94-b3e6-6ad3732e6afd",
+       "position": 6,
+       "title": "L'Aberek",
+       "length": 270520
+      },
+      {
+       "artist-credit": [
+        {
+         "artist": {
+          "country": "CA",
+          "type": "Group",
+          "sort-name": "Angine de Poitrine",
+          "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+          "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+          "disambiguation": "",
+          "name": "Angine de Poitrine"
+         },
+         "joinphrase": "",
+         "name": "Angine de Poitrine"
+        }
+       ],
+       "number": "7",
+       "recording": {
+        "first-release-date": "2026-06-12",
+        "artist-credit": [
+         {
+          "joinphrase": "",
+          "name": "Angine de Poitrine",
+          "artist": {
+           "name": "Angine de Poitrine",
+           "disambiguation": "",
+           "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+           "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+           "type": "Group",
+           "sort-name": "Angine de Poitrine",
+           "country": "CA"
+          }
+         }
+        ],
+        "id": "1ac08edc-eece-4536-be3c-5aaea3869bc0",
+        "disambiguation": "",
+        "video": false,
+        "length": 94880,
+        "title": "[unknown]"
+       },
+       "id": "00a64f37-dc2d-4e50-a257-84de1595f2e5",
+       "position": 7,
+       "title": "[Untitled]",
+       "length": 94880
+      }
+     ],
+     "format": "CD"
+    }
+   ],
+   "disambiguation": "first pressing",
+   "release-group": {
+    "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+    "secondary-type-ids": [],
+    "first-release-date": "2024-06-14",
+    "artist-credit": [
+     {
+      "artist": {
+       "country": "CA",
+       "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+       "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+       "type": "Group",
+       "sort-name": "Angine de Poitrine",
+       "name": "Angine de Poitrine",
+       "disambiguation": ""
+      },
+      "joinphrase": "",
+      "name": "Angine de Poitrine"
+     }
+    ],
+    "primary-type": "Album",
+    "disambiguation": "",
+    "title": "Vol.1",
+    "id": "19f43783-f613-44bf-a332-fa0487923894",
+    "secondary-types": []
+   },
+   "artist-credit": [
+    {
+     "artist": {
+      "sort-name": "Angine de Poitrine",
+      "type": "Group",
+      "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+      "name": "Angine de Poitrine",
+      "disambiguation": "",
+      "country": "CA"
+     },
+     "name": "Angine de Poitrine",
+     "joinphrase": ""
+    }
+   ],
+   "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+   "label-info": [
+    {
+     "catalog-number": "AP-01CD",
+     "label": {
+      "name": "[no label]",
+      "disambiguation": "Special purpose label – white labels, self-published releases and other “no label” releases",
+      "id": "157afde4-4bf5-4039-8ad2-5a15acc85176",
+      "type-id": "a2426aab-2dd4-339c-b47d-b4923a241678",
+      "type": "Production",
+      "sort-name": "[no label]",
+      "label-code": null
+     }
+    }
+   ],
+   "packaging": "Jewel Case",
+   "release-events": [
+    {
+     "area": {
+      "disambiguation": "",
+      "name": "Canada",
+      "type": null,
+      "sort-name": "Canada",
+      "id": "71bbafaa-e825-3e15-8ca9-017dcad1748b",
+      "type-id": null,
+      "iso-3166-1-codes": [
+       "CA"
+      ]
+     },
+     "date": "2026-06-12"
+    }
+   ],
+   "quality": "normal",
+   "id": "0ad10c57-6082-4d48-8594-68bae3c31316",
+   "cover-art-archive": {
+    "artwork": true,
+    "count": 1,
+    "front": true,
+    "darkened": false,
+    "back": false
+   },
+   "date": "2026-06-12",
+   "country": "CA",
+   "text-representation": {
+    "language": "fra",
+    "script": "Latn"
+   },
+   "asin": null,
+   "status": "Official"
+  },
+  {
+   "cover-art-archive": {
+    "darkened": false,
+    "front": true,
+    "back": false,
+    "artwork": true,
+    "count": 1
+   },
+   "quality": "normal",
+   "id": "9c3bed13-2b95-4a85-b4fa-48746a4a4675",
+   "text-representation": {
+    "language": "fra",
+    "script": "Latn"
+   },
+   "asin": null,
+   "status": "Official",
+   "country": "XW",
+   "date": "2026-06-12",
+   "title": "Vol.1",
+   "barcode": "5053760151524",
+   "media": [
+    {
+     "tracks": [
+      {
+       "artist-credit": [
+        {
+         "joinphrase": "",
+         "name": "Angine de Poitrine",
+         "artist": {
+          "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+          "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+          "type": "Group",
+          "sort-name": "Angine de Poitrine",
+          "name": "Angine de Poitrine",
+          "disambiguation": "",
+          "country": "CA"
+         }
+        }
+       ],
+       "recording": {
+        "video": false,
+        "length": 343346,
+        "disambiguation": "",
+        "title": "Sherpa",
+        "first-release-date": "2024-06-01",
+        "id": "bd953e77-f7df-467b-b1cf-e42d3eec5968",
+        "artist-credit": [
+         {
+          "joinphrase": "",
+          "name": "Angine de Poitrine",
+          "artist": {
+           "disambiguation": "",
+           "name": "Angine de Poitrine",
+           "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+           "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+           "type": "Group",
+           "sort-name": "Angine de Poitrine",
+           "country": "CA"
+          }
+         }
+        ]
+       },
+       "number": "1",
+       "title": "Sherpa",
+       "length": 343346,
+       "id": "64c3a326-2d93-4528-bdcf-b9d72b00aecd",
+       "position": 1
+      },
+      {
+       "artist-credit": [
+        {
+         "artist": {
+          "disambiguation": "",
+          "name": "Angine de Poitrine",
+          "sort-name": "Angine de Poitrine",
+          "type": "Group",
+          "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+          "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+          "country": "CA"
+         },
+         "name": "Angine de Poitrine",
+         "joinphrase": ""
+        }
+       ],
+       "number": "2",
+       "recording": {
+        "first-release-date": "2024-06-14",
+        "id": "3edaf31f-c7a8-4ceb-a541-efeeb7ad5021",
+        "artist-credit": [
+         {
+          "name": "Angine de Poitrine",
+          "joinphrase": "",
+          "artist": {
+           "country": "CA",
+           "name": "Angine de Poitrine",
+           "disambiguation": "",
+           "sort-name": "Angine de Poitrine",
+           "type": "Group",
+           "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+           "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+          }
+         }
+        ],
+        "length": 245133,
+        "video": false,
+        "disambiguation": "",
+        "title": "Tohogd"
+       },
+       "title": "Tohogd",
+       "length": 245133,
+       "id": "7aa122c7-35f5-4b52-9198-3d08ea10ea82",
+       "position": 2
+      },
+      {
+       "position": 3,
+       "id": "b7c4aaa2-7be1-4874-ba0b-edad47a38cfa",
+       "length": 476813,
+       "title": "Tamebsz",
+       "recording": {
+        "first-release-date": "2024-06-14",
+        "artist-credit": [
+         {
+          "artist": {
+           "country": "CA",
+           "disambiguation": "",
+           "name": "Angine de Poitrine",
+           "type": "Group",
+           "sort-name": "Angine de Poitrine",
+           "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+           "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+          },
+          "name": "Angine de Poitrine",
+          "joinphrase": ""
+         }
+        ],
+        "id": "330c8e87-41bd-47bc-96ab-33fea914c63d",
+        "disambiguation": "",
+        "length": 476813,
+        "video": false,
+        "title": "Tamebsz"
+       },
+       "number": "3",
+       "artist-credit": [
+        {
+         "artist": {
+          "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+          "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+          "type": "Group",
+          "sort-name": "Angine de Poitrine",
+          "name": "Angine de Poitrine",
+          "disambiguation": "",
+          "country": "CA"
+         },
+         "name": "Angine de Poitrine",
+         "joinphrase": ""
+        }
+       ]
+      },
+      {
+       "id": "43a01c33-44c9-4ee6-ab3b-8906508b34ef",
+       "position": 4,
+       "title": "Ababa Hotel",
+       "length": 385986,
+       "artist-credit": [
+        {
+         "artist": {
+          "country": "CA",
+          "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+          "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+          "type": "Group",
+          "sort-name": "Angine de Poitrine",
+          "disambiguation": "",
+          "name": "Angine de Poitrine"
+         },
+         "joinphrase": "",
+         "name": "Angine de Poitrine"
+        }
+       ],
+       "number": "4",
+       "recording": {
+        "disambiguation": "",
+        "length": 385986,
+        "video": false,
+        "title": "Ababa Hotel",
+        "first-release-date": "2024-06-14",
+        "artist-credit": [
+         {
+          "artist": {
+           "type": "Group",
+           "sort-name": "Angine de Poitrine",
+           "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+           "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+           "disambiguation": "",
+           "name": "Angine de Poitrine",
+           "country": "CA"
+          },
+          "joinphrase": "",
+          "name": "Angine de Poitrine"
+         }
+        ],
+        "id": "93dcfd88-d4b3-4362-b7f7-2e2dcc843185"
+       }
+      },
+      {
+       "number": "5",
+       "recording": {
+        "id": "2ae96cf8-a953-4b59-8dbc-b39a2bbf477d",
+        "artist-credit": [
+         {
+          "joinphrase": "",
+          "name": "Angine de Poitrine",
+          "artist": {
+           "disambiguation": "",
+           "name": "Angine de Poitrine",
+           "sort-name": "Angine de Poitrine",
+           "type": "Group",
+           "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+           "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+           "country": "CA"
+          }
+         }
+        ],
+        "first-release-date": "2024-06-14",
+        "title": "Sahardnieh",
+        "video": false,
+        "length": 253613,
+        "disambiguation": ""
+       },
+       "artist-credit": [
+        {
+         "artist": {
+          "country": "CA",
+          "type": "Group",
+          "sort-name": "Angine de Poitrine",
+          "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+          "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+          "name": "Angine de Poitrine",
+          "disambiguation": ""
+         },
+         "name": "Angine de Poitrine",
+         "joinphrase": ""
+        }
+       ],
+       "position": 5,
+       "id": "ec37e6c2-4a6d-44bd-8226-dff2f7b7a5ba",
+       "length": 253613,
+       "title": "Sahardnieh"
+      },
+      {
+       "artist-credit": [
+        {
+         "artist": {
+          "country": "CA",
+          "name": "Angine de Poitrine",
+          "disambiguation": "",
+          "type": "Group",
+          "sort-name": "Angine de Poitrine",
+          "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+          "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc"
+         },
+         "name": "Angine de Poitrine",
+         "joinphrase": ""
+        }
+       ],
+       "recording": {
+        "first-release-date": "2024-06-14",
+        "id": "7a90dfba-e95b-4439-88c6-01ada03e16b0",
+        "artist-credit": [
+         {
+          "artist": {
+           "disambiguation": "",
+           "name": "Angine de Poitrine",
+           "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+           "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+           "sort-name": "Angine de Poitrine",
+           "type": "Group",
+           "country": "CA"
+          },
+          "joinphrase": "",
+          "name": "Angine de Poitrine"
+         }
+        ],
+        "length": 270520,
+        "video": false,
+        "disambiguation": "",
+        "title": "L’Aberek"
+       },
+       "number": "6",
+       "id": "8eec5ff7-cdd8-4c18-a575-18f288e94174",
+       "position": 6,
+       "title": "L’Aberek",
+       "length": 270520
+      },
+      {
+       "title": "[untitled]",
+       "length": 94880,
+       "id": "288687e7-01dc-4a1b-912b-7e830f222da0",
+       "position": 7,
+       "artist-credit": [
+        {
+         "artist": {
+          "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+          "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+          "sort-name": "Angine de Poitrine",
+          "type": "Group",
+          "disambiguation": "",
+          "name": "Angine de Poitrine",
+          "country": "CA"
+         },
+         "name": "Angine de Poitrine",
+         "joinphrase": ""
+        }
+       ],
+       "number": "7",
+       "recording": {
+        "first-release-date": "2026-06-12",
+        "artist-credit": [
+         {
+          "name": "Angine de Poitrine",
+          "joinphrase": "",
+          "artist": {
+           "country": "CA",
+           "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+           "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+           "type": "Group",
+           "sort-name": "Angine de Poitrine",
+           "disambiguation": "",
+           "name": "Angine de Poitrine"
+          }
+         }
+        ],
+        "id": "1ac08edc-eece-4536-be3c-5aaea3869bc0",
+        "disambiguation": "",
+        "video": false,
+        "length": 94880,
+        "title": "[unknown]"
+       }
+      }
+     ],
+     "format": "CD",
+     "track-offset": 0,
+     "title": "",
+     "discs": [
+      {
+       "sectors": 155422,
+       "offset-count": 7,
+       "offsets": [
+        150,
+        25901,
+        44286,
+        80047,
+        108996,
+        128017,
+        148306
+       ],
+       "id": "ff7_Sk1lcCL9UzNClaChCRxHKh4-"
+      }
+     ],
+     "position": 1,
+     "id": "2a2af85f-0853-4437-8875-dbd0342157cb",
+     "track-count": 7,
+     "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31"
+    }
+   ],
+   "disambiguation": "",
+   "release-group": {
+    "artist-credit": [
+     {
+      "name": "Angine de Poitrine",
+      "joinphrase": "",
+      "artist": {
+       "country": "CA",
+       "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+       "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+       "sort-name": "Angine de Poitrine",
+       "type": "Group",
+       "name": "Angine de Poitrine",
+       "disambiguation": ""
+      }
+     }
+    ],
+    "primary-type": "Album",
+    "first-release-date": "2024-06-14",
+    "secondary-type-ids": [],
+    "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+    "id": "19f43783-f613-44bf-a332-fa0487923894",
+    "secondary-types": [],
+    "title": "Vol.1",
+    "disambiguation": ""
+   },
+   "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+   "release-events": [
+    {
+     "area": {
+      "iso-3166-1-codes": [
+       "XW"
+      ],
+      "type": null,
+      "sort-name": "[Worldwide]",
+      "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+      "type-id": null,
+      "disambiguation": "",
+      "name": "[Worldwide]"
+     },
+     "date": "2026-06-12"
+    }
+   ],
+   "artist-credit": [
+    {
+     "name": "Angine de Poitrine",
+     "joinphrase": "",
+     "artist": {
+      "country": "CA",
+      "type": "Group",
+      "sort-name": "Angine de Poitrine",
+      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+      "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+      "name": "Angine de Poitrine",
+      "disambiguation": ""
+     }
+    }
+   ],
+   "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+   "label-info": [
+    {
+     "label": {
+      "label-code": null,
+      "sort-name": "Spectacles Bonzaï",
+      "type": "Original Production",
+      "type-id": "7aaa37fe-2def-3476-b359-80245850062d",
+      "id": "2baaa366-a52a-478c-ad8e-58bdb2d0623d",
+      "disambiguation": "",
+      "name": "Spectacles Bonzaï"
+     },
+     "catalog-number": "AP-01CD"
+    }
+   ],
+   "packaging": "Jewel Case"
+  },
+  {
+   "country": "US",
+   "date": "2026-06-12",
+   "status": "Official",
+   "asin": "B0GWK58NXB",
+   "text-representation": {
+    "language": null,
+    "script": "Latn"
+   },
+   "id": "0b7387e5-c9e3-455a-bc8c-e1beca6bad5c",
+   "quality": "normal",
+   "cover-art-archive": {
+    "back": true,
+    "front": true,
+    "darkened": false,
+    "count": 15,
+    "artwork": true
+   },
+   "label-info": [
+    {
+     "label": {
+      "label-code": null,
+      "name": "[no label]",
+      "disambiguation": "Special purpose label – white labels, self-published releases and other “no label” releases",
+      "id": "157afde4-4bf5-4039-8ad2-5a15acc85176",
+      "type-id": "a2426aab-2dd4-339c-b47d-b4923a241678",
+      "type": "Production",
+      "sort-name": "[no label]"
+     },
+     "catalog-number": "AP-01CD"
+    }
+   ],
+   "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+   "artist-credit": [
+    {
+     "name": "Angine de Poitrine",
+     "joinphrase": "",
+     "artist": {
+      "disambiguation": "",
+      "name": "Angine de Poitrine",
+      "sort-name": "Angine de Poitrine",
+      "type": "Group",
+      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+      "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+      "country": "CA"
+     }
+    }
+   ],
+   "packaging": "Jewel Case",
+   "release-events": [
+    {
+     "area": {
+      "iso-3166-1-codes": [
+       "US"
+      ],
+      "name": "United States",
+      "disambiguation": "",
+      "sort-name": "United States",
+      "type": null,
+      "id": "489ce91b-6658-3307-9877-795b68554c98",
+      "type-id": null
+     },
+     "date": "2026-06-12"
+    }
+   ],
+   "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+   "title": "Vol.1",
+   "barcode": "880882701826",
+   "release-group": {
+    "artist-credit": [
+     {
+      "name": "Angine de Poitrine",
+      "joinphrase": "",
+      "artist": {
+       "country": "CA",
+       "name": "Angine de Poitrine",
+       "disambiguation": "",
+       "sort-name": "Angine de Poitrine",
+       "type": "Group",
+       "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+       "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+      }
+     }
+    ],
+    "primary-type": "Album",
+    "first-release-date": "2024-06-14",
+    "secondary-type-ids": [],
+    "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+    "secondary-types": [],
+    "id": "19f43783-f613-44bf-a332-fa0487923894",
+    "title": "Vol.1",
+    "disambiguation": ""
+   },
+   "disambiguation": "distributed by ATO Records, LLC",
+   "media": [
+    {
+     "format": "CD",
+     "tracks": [
+      {
+       "title": "Sherpa",
+       "length": 343346,
+       "id": "632e7563-0b14-4fdb-9d6d-1296c5591e9b",
+       "position": 1,
+       "artist-credit": [
+        {
+         "name": "Angine de Poitrine",
+         "joinphrase": "",
+         "artist": {
+          "name": "Angine de Poitrine",
+          "disambiguation": "",
+          "sort-name": "Angine de Poitrine",
+          "type": "Group",
+          "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+          "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+          "country": "CA"
+         }
+        }
+       ],
+       "number": "1",
+       "recording": {
+        "first-release-date": "2024-06-01",
+        "artist-credit": [
+         {
+          "artist": {
+           "type": "Group",
+           "sort-name": "Angine de Poitrine",
+           "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+           "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+           "name": "Angine de Poitrine",
+           "disambiguation": "",
+           "country": "CA"
+          },
+          "name": "Angine de Poitrine",
+          "joinphrase": ""
+         }
+        ],
+        "id": "bd953e77-f7df-467b-b1cf-e42d3eec5968",
+        "disambiguation": "",
+        "video": false,
+        "length": 343346,
+        "title": "Sherpa"
+       }
+      },
+      {
+       "id": "0cd1c4bc-e116-4392-95bb-64e1e75f1adb",
+       "position": 2,
+       "title": "Tohogd",
+       "length": 245133,
+       "artist-credit": [
+        {
+         "name": "Angine de Poitrine",
+         "joinphrase": "",
+         "artist": {
+          "country": "CA",
+          "name": "Angine de Poitrine",
+          "disambiguation": "",
+          "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+          "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+          "type": "Group",
+          "sort-name": "Angine de Poitrine"
+         }
+        }
+       ],
+       "recording": {
+        "first-release-date": "2024-06-14",
+        "id": "3edaf31f-c7a8-4ceb-a541-efeeb7ad5021",
+        "artist-credit": [
+         {
+          "artist": {
+           "name": "Angine de Poitrine",
+           "disambiguation": "",
+           "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+           "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+           "type": "Group",
+           "sort-name": "Angine de Poitrine",
+           "country": "CA"
+          },
+          "joinphrase": "",
+          "name": "Angine de Poitrine"
+         }
+        ],
+        "video": false,
+        "length": 245133,
+        "disambiguation": "",
+        "title": "Tohogd"
+       },
+       "number": "2"
+      },
+      {
+       "id": "a322449c-1380-471d-8876-9482254ce738",
+       "position": 3,
+       "title": "Tamebsz",
+       "length": 476813,
+       "artist-credit": [
+        {
+         "joinphrase": "",
+         "name": "Angine de Poitrine",
+         "artist": {
+          "type": "Group",
+          "sort-name": "Angine de Poitrine",
+          "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+          "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+          "name": "Angine de Poitrine",
+          "disambiguation": "",
+          "country": "CA"
+         }
+        }
+       ],
+       "number": "3",
+       "recording": {
+        "video": false,
+        "length": 476813,
+        "disambiguation": "",
+        "title": "Tamebsz",
+        "first-release-date": "2024-06-14",
+        "id": "330c8e87-41bd-47bc-96ab-33fea914c63d",
+        "artist-credit": [
+         {
+          "name": "Angine de Poitrine",
+          "joinphrase": "",
+          "artist": {
+           "country": "CA",
+           "disambiguation": "",
+           "name": "Angine de Poitrine",
+           "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+           "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+           "sort-name": "Angine de Poitrine",
+           "type": "Group"
+          }
+         }
+        ]
+       }
+      },
+      {
+       "artist-credit": [
+        {
+         "artist": {
+          "disambiguation": "",
+          "name": "Angine de Poitrine",
+          "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+          "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+          "sort-name": "Angine de Poitrine",
+          "type": "Group",
+          "country": "CA"
+         },
+         "joinphrase": "",
+         "name": "Angine de Poitrine"
+        }
+       ],
+       "recording": {
+        "first-release-date": "2024-06-14",
+        "id": "93dcfd88-d4b3-4362-b7f7-2e2dcc843185",
+        "artist-credit": [
+         {
+          "artist": {
+           "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+           "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+           "sort-name": "Angine de Poitrine",
+           "type": "Group",
+           "name": "Angine de Poitrine",
+           "disambiguation": "",
+           "country": "CA"
+          },
+          "name": "Angine de Poitrine",
+          "joinphrase": ""
+         }
+        ],
+        "video": false,
+        "length": 385986,
+        "disambiguation": "",
+        "title": "Ababa Hotel"
+       },
+       "number": "4",
+       "id": "8007c80a-fb6e-4f8b-93bd-ddefff41e3f2",
+       "position": 4,
+       "title": "Ababa Hotel",
+       "length": 385986
+      },
+      {
+       "length": 253613,
+       "title": "Sahardnieh",
+       "position": 5,
+       "id": "9d8286fa-d52f-491b-a4d1-f5a0c5b0f171",
+       "number": "5",
+       "recording": {
+        "first-release-date": "2024-06-14",
+        "artist-credit": [
+         {
+          "joinphrase": "",
+          "name": "Angine de Poitrine",
+          "artist": {
+           "disambiguation": "",
+           "name": "Angine de Poitrine",
+           "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+           "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+           "sort-name": "Angine de Poitrine",
+           "type": "Group",
+           "country": "CA"
+          }
+         }
+        ],
+        "id": "2ae96cf8-a953-4b59-8dbc-b39a2bbf477d",
+        "disambiguation": "",
+        "video": false,
+        "length": 253613,
+        "title": "Sahardnieh"
+       },
+       "artist-credit": [
+        {
+         "name": "Angine de Poitrine",
+         "joinphrase": "",
+         "artist": {
+          "country": "CA",
+          "type": "Group",
+          "sort-name": "Angine de Poitrine",
+          "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+          "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+          "name": "Angine de Poitrine",
+          "disambiguation": ""
+         }
+        }
+       ]
+      },
+      {
+       "recording": {
+        "title": "L’Aberek",
+        "disambiguation": "",
+        "length": 270520,
+        "video": false,
+        "artist-credit": [
+         {
+          "joinphrase": "",
+          "name": "Angine de Poitrine",
+          "artist": {
+           "country": "CA",
+           "name": "Angine de Poitrine",
+           "disambiguation": "",
+           "sort-name": "Angine de Poitrine",
+           "type": "Group",
+           "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+           "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+          }
+         }
+        ],
+        "id": "7a90dfba-e95b-4439-88c6-01ada03e16b0",
+        "first-release-date": "2024-06-14"
+       },
+       "number": "6",
+       "artist-credit": [
+        {
+         "artist": {
+          "country": "CA",
+          "sort-name": "Angine de Poitrine",
+          "type": "Group",
+          "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+          "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+          "disambiguation": "",
+          "name": "Angine de Poitrine"
+         },
+         "name": "Angine de Poitrine",
+         "joinphrase": ""
+        }
+       ],
+       "position": 6,
+       "id": "5206cd1e-ce4d-40dd-b2cd-21be0a50c877",
+       "length": 270520,
+       "title": "L’Aberek"
+      },
+      {
+       "artist-credit": [
+        {
+         "artist": {
+          "sort-name": "Angine de Poitrine",
+          "type": "Group",
+          "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+          "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+          "disambiguation": "",
+          "name": "Angine de Poitrine",
+          "country": "CA"
+         },
+         "name": "Angine de Poitrine",
+         "joinphrase": ""
+        }
+       ],
+       "number": "7",
+       "recording": {
+        "title": "[unknown]",
+        "disambiguation": "",
+        "video": false,
+        "length": 94880,
+        "artist-credit": [
+         {
+          "artist": {
+           "country": "CA",
+           "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+           "id": "5fd29907-c3c5-4b1d-a799-7cf9bbd288fc",
+           "type": "Group",
+           "sort-name": "Angine de Poitrine",
+           "disambiguation": "",
+           "name": "Angine de Poitrine"
+          },
+          "joinphrase": "",
+          "name": "Angine de Poitrine"
+         }
+        ],
+        "id": "1ac08edc-eece-4536-be3c-5aaea3869bc0",
+        "first-release-date": "2026-06-12"
+       },
+       "title": "[unknown]",
+       "length": 94880,
+       "id": "00388a1c-be18-40a0-b9d4-c5f3f29d728a",
+       "position": 7
+      }
+     ],
+     "id": "cc19f76e-60ff-43aa-bbf2-cb5203273748",
+     "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+     "track-count": 7,
+     "position": 1,
+     "discs": [
+      {
+       "offset-count": 7,
+       "sectors": 155422,
+       "id": "ff7_Sk1lcCL9UzNClaChCRxHKh4-",
+       "offsets": [
+        150,
+        25901,
+        44286,
+        80047,
+        108996,
+        128017,
+        148306
+       ]
+      }
+     ],
+     "title": "",
+     "track-offset": 0
+    }
+   ]
+  }
+ ],
+ "offset-count": 7,
+ "sectors": 155422
+}

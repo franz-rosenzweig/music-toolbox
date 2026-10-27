@@ -24,6 +24,7 @@ struct RootView: View {
                     .badge(uploads.jobs.filter { $0.state != .done }.count)
                     .tag(Place.upload)
                 Label("Library", systemImage: "magnifyingglass").tag(Place.library)
+                Label("Rip", systemImage: "opticaldisc").tag(Place.rip)
                 Label("History", systemImage: "clock.arrow.circlepath").tag(Place.history)
                 Label("Activity", systemImage: "list.bullet.rectangle").tag(Place.activity)
                 Section("Devices") {
@@ -50,6 +51,7 @@ struct RootView: View {
                 case .needs, nil: NeedsView()
                 case .upload: UploadView()
                 case .library: LibraryView()
+                case .rip: RipView()
                 case .history: HistoryView()
                 case .activity: ActivityView()
                 case .device(let id):

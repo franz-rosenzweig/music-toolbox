@@ -4,6 +4,8 @@
 # files. Pictures and the log land in WORK/out.
 #
 #   ./selftest.sh [WORK]                  # WORK defaults to a new temporary folder
+#   ./selftest.sh WORK --rip              # the disc ID and MusicBrainz parsing from saved fixtures; with RIP_REAL=1 and a
+#                                         # disc in the drive, also a real rip into WORK/rips and on to the stand-in
 #   ./selftest.sh WORK --samples FILE     # instead: only decode the panel's recorded answers (docs/api-samples.json
 #                                         # in its repository) the way the app does
 #   ./selftest.sh WORK --real user@host   # instead: one small album pulled from the real library
@@ -15,6 +17,7 @@ cd "${0:A:h}"
 WORK=${1:-$(mktemp -d)}; mkdir -p "$WORK"; WORK=${WORK:A}
 REAL=""; [[ ${2:-} == --real ]] && REAL=${3:?user@host}
 SAMPLES=""; [[ ${2:-} == --samples ]] && SAMPLES=${3:?FILE}
+RIP=""; [[ ${2:-} == --rip ]] && RIP=1
 OUT=$WORK/out; rm -rf "$OUT"; mkdir -p "$OUT"
 export PATH=/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin
 fail() { echo "FAIL $*"; FAILED=1; }
@@ -24,9 +27,36 @@ FAILED=0
 MUSIC_OUT=$WORK/app MUSIC_ID=xyz.tiresia.musictoolbox.selftest MUSIC_NAME="Music Toolbox Selftest" ./build.sh >/dev/null
 APP="$WORK/app/Music Toolbox Selftest.app/Contents/MacOS/MusicToolbox"
 
+if [[ -n $RIP ]]; then
+  # the disc ID and MusicBrainz parsing from saved fixtures, and, with a disc in the drive, a real rip
+  # of it into WORK/rips and on to the stand-in panel
+  MUSIC_OUT=$WORK/app MUSIC_ID=xyz.tiresia.musictoolbox.selftest MUSIC_NAME="Music Toolbox Selftest" ./build.sh >/dev/null
+  mkdir -p "$WORK/panel" "$WORK/rips" "$WORK/server"; : > "$WORK/server/q.txt"
+  PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1])')
+  python3 tests/standin-panel.py $PORT "$WORK/panel" --lib "$WORK/server/lib" --queue "$WORK/server/q.txt" --log "$WORK/server/l.jsonl" 2>"$OUT/standin.err" & SP=$!
+  sleep 1
+  [[ -n ${RIP_REAL:-} ]] && export MUSIC_TEST_RIP_DEST=$WORK/rips
+  ( sleep 1500; pkill -f "$APP" ) >/dev/null 2>&1 & WATCH=$!
+  MUSIC_SELFTEST=$OUT MUSIC_PANEL_URL=http://127.0.0.1:$PORT MUSIC_PANEL_USER=test MUSIC_PANEL_PASSWORD=test-password MUSIC_TEST_RIP=1 \
+  MUSIC_TEST_FIXTURES=$PWD/tests/fixtures "$APP" -ApplePersistenceIgnoreState YES >"$OUT/stdout.txt" 2>"$OUT/stderr.txt" || true
+  kill $WATCH $SP 2>/dev/null || true
+  grep -E "^(PASS|FAIL|INFO|SELFTEST)" "$OUT/log.txt"
+  OK=0; grep -q "SELFTEST passed" "$OUT/log.txt" || OK=1
+  for f in "$WORK"/rips/*/*/*.flac(N); do
+    flac -t -s "$f" 2>/dev/null && echo "PASS flac -t ok: ${f:t}" || { echo "FAIL flac -t: ${f:t}"; OK=1; }
+  done
+  F=$(echo "$WORK"/rips/*/*/01*.flac(N)); if [[ -n $F ]]; then
+    echo "tags of ${F:t}:"; metaflac --export-tags-to=- "$F" | sed 's/^/   /'; metaflac --list --block-type=PICTURE "$F" | grep -E "MIME|type:|length" | sed 's/^/   /'
+    for f in "$WORK"/rips/*/*/*.flac; do
+      cmp -s "$f" "$WORK/panel/inbox/${f:h:t}/${f:h:t}/${f:t}" && echo "PASS uploaded copy identical: ${f:t}" || { echo "FAIL uploaded copy differs: ${f:t}"; OK=1; }
+    done
+  fi
+  exit $OK
+fi
+
 if [[ -n $SAMPLES ]]; then
   MUSIC_OUT=$WORK/app MUSIC_ID=xyz.tiresia.musictoolbox.selftest MUSIC_NAME="Music Toolbox Selftest" ./build.sh >/dev/null
-  ( sleep 60; pkill -f "$APP" ) 2>/dev/null & WATCH=$!
+  ( sleep 60; pkill -f "$APP" ) >/dev/null 2>&1 & WATCH=$!
   MUSIC_SELFTEST=$OUT MUSIC_TEST_SAMPLES=${SAMPLES:A} "$APP" -ApplePersistenceIgnoreState YES >"$OUT/stdout.txt" 2>"$OUT/stderr.txt" || true
   kill $WATCH 2>/dev/null || true
   grep -E "^(PASS|FAIL|SELFTEST)" "$OUT/log.txt"; grep -q "SELFTEST passed" "$OUT/log.txt"; exit $?
@@ -67,7 +97,7 @@ SERVER_PID=$!
 sleep 1
 
 if [[ -z $REAL ]]; then
-  ( sleep 240; pkill -f "$APP" ) 2>/dev/null & WATCH=$!
+  ( sleep 240; pkill -f "$APP" ) >/dev/null 2>&1 & WATCH=$!
   MUSIC_SELFTEST=$OUT MUSIC_PANEL_URL=http://127.0.0.1:$PORT MUSIC_PANEL_USER=test MUSIC_PANEL_PASSWORD=test-password \
   MUSIC_SSH=$PWD/tests/fake-ssh MUSIC_SSH_TARGET=test MUSIC_MUSICPATH=$LIB \
   MUSIC_TEST_UPLOAD="$WORK/up1/Album A" MUSIC_TEST_UPLOAD2="$WORK/up2/Album B" MUSIC_TEST_FILES=4 MUSIC_TEST_VOLUME=$VOL MUSIC_TEST_QUEUE=4 MUSIC_TEST_EJECT=1 \
@@ -110,7 +140,7 @@ else
   ENTRY=$("${SSH[@]}" 'cd /srv/media/music && find . -mindepth 2 -maxdepth 2 -type d | sed "s|^\./||" | LC_ALL=C grep -P "[^\x00-\x7F]" | head -40 | while IFS= read -r d; do printf "%s\t%s\n" "$(du -sm -- "$d" | cut -f1)" "$d"; done | awk -F"\t" "\$1>0 && \$1<80" | sort -n | head -1 | cut -f2')
   [[ -n $ENTRY ]] || { echo "no small non-ASCII album found"; exit 1; }
   echo "pulling: $ENTRY"
-  ( sleep 400; pkill -f "$APP" ) 2>/dev/null & WATCH=$!
+  ( sleep 400; pkill -f "$APP" ) >/dev/null 2>&1 & WATCH=$!
   MUSIC_SELFTEST=$OUT MUSIC_SSH_TARGET=$REAL MUSIC_TEST_ENTRY="$ENTRY" MUSIC_TEST_REAL=1 MUSIC_TEST_VOLUME=$VOL \
     MUSIC_PANEL_URL=http://127.0.0.1:$PORT MUSIC_PANEL_USER=test MUSIC_PANEL_PASSWORD=test-password \
     "$APP" -ApplePersistenceIgnoreState YES >"$OUT/stdout.txt" 2>"$OUT/stderr.txt" || true
