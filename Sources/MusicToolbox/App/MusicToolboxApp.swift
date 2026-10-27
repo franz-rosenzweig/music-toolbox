@@ -80,7 +80,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+    /// With "open for discs / players" on, the app keeps running with its window closed, to open it when one comes in.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { !Prefs.staysRunning }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { true }
 }
 
 /// A test copy that hits an exception writes it down and leaves quietly: no crash report, no dialog

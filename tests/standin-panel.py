@@ -169,7 +169,10 @@ def job_json(jid, j):
         return {'id': jid, 'kind': j['kind'], 'title': 'Import ' + j['album'], 'status': 'running' if running else 'done', 'result': None if running else result, 'error': None, 'progress': None if running else 1.0,
                 'run': None if running else j['kind'] + '-test', 'seconds': j['polls'], 'log': 'importing…' if running else ''}
     if j['kind'] == 'names':
-        return {'id': jid, 'kind': 'names', 'title': 'Rename ' + str(len(j['renames'])) + ' names', 'status': 'running' if running else 'done', 'result': None if running else {'renames': j['renames']}, 'error': None, 'progress': None, 'run': 'names-test', 'seconds': j['polls'], 'log': ''}
+        files = 0 if any(r.get('english') == 'Nothing To Do' for r in j['renames']) else 23
+        result = {'run': 'names-test', 'names': [{'kind': r['kind'], 'from': r['name'], 'to': r['english'], 'was': None} for r in j['renames']], 'files': files, 'fields': files,
+                  'warning': None if files else 'Nothing needed changing: the files already carry the English name. The list this came from is Navidrome’s database, which catches up when it rescans (within the hour).'}
+        return {'id': jid, 'kind': 'names', 'title': 'Rename ' + str(len(j['renames'])) + ' names', 'status': 'running' if running else 'done', 'result': None if running else result, 'error': None, 'progress': None, 'run': 'names-test', 'seconds': j['polls'], 'log': ''}
     if j['kind'] == 'upload-import':
         left = min(NEEDS_LOOK, j['tracks'])
         result = {'tracks_total': j['tracks'], 'tracks_imported': j['tracks'] - left, 'tracks_left': left}

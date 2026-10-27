@@ -12,7 +12,13 @@ library onto players. Not a music player.
   titles, artist, year and cover filled in (editable; a menu picks between releases). Each track is copied
   off the disc, encoded to FLAC with `flac --verify`, tagged with MusicBrainz IDs and the cover, and saved in
   `~/Music/CD Rips/Artist/Album/` (Settings changes the folder); "Rip and Upload" then sends it through the
-  upload, where the panel's beets matches it. Needs `flac` (`brew install flac`).
+  upload, where the panel's beets matches it. Needs `flac` (`brew install flac`). A set of discs shares one
+  folder and carries DISCNUMBER/DISCTOTAL tags; the screen shows "Disc 2 of 2" and which discs are already in
+  the folder, and keeps "Rip" as the main button until the set is complete, so one upload sends all of it.
+  The disc is ejected when the rip is done (a switch next to the buttons).
+- **When Connected** (Settings): the app comes to the front on the Rip screen when an audio CD goes in, and on
+  the device page when a player is connected; each is a switch, and "Open at Login" starts the app at login so
+  it is there to be shown. With either switch on, closing the window leaves the app running.
 - **Library**: search, filters and sort, the lyrics coverage, an album's covers and lyrics (read, paste,
   remove, instrumental, look up), send it to a device, and play a track to see what it is.
 - **History** and **Activity**: every change with an undo that says what it would do first, and the

@@ -44,6 +44,16 @@ struct RipView: View {
                     TextField("Artist", text: $ripper.albumArtist).textFieldStyle(.roundedBorder)
                     TextField("Year", text: $ripper.year).textFieldStyle(.roundedBorder).frame(width: 90)
                 }
+                if ripper.discCount > 1 {
+                    HStack(spacing: 10) {
+                        Text("Disc \(ripper.discNumber) of \(ripper.discCount)").font(.headline)
+                        ForEach(1...ripper.discCount, id: \.self) { n in
+                            let there = n == ripper.discNumber ? ripper.items.allSatisfy({ $0.state == .done }) : ripper.rippedDiscs.contains(n)
+                            Label("\(n)", systemImage: there ? "checkmark.circle.fill" : n == ripper.discNumber ? "opticaldisc" : "circle")
+                                .foregroundStyle(there ? Color.green : n == ripper.discNumber ? Color.accentColor : Color.secondary)
+                        }
+                    }
+                }
                 HStack(spacing: 8) {
                     Text("\(disc.tracks.count) tracks · \(Fmt.clock(Int(disc.totalSeconds)))").foregroundStyle(.secondary).monospacedDigit()
                     if ripper.activity == .looking { ProgressView().controlSize(.small) }
@@ -101,17 +111,27 @@ struct RipView: View {
                 HStack { Text("\(ripper.done) of \(ripper.items.count)").foregroundStyle(.secondary).monospacedDigit(); Spacer(); Button("Cancel") { ripper.cancel() } }
             } else {
                 HStack {
-                    Button("Rip and Upload") { ripper.rip(andUpload: true) }.buttonStyle(.borderedProminent).disabled(ripper.activity != .idle)
-                    Button("Rip") { ripper.rip(andUpload: false) }.disabled(ripper.activity != .idle)
+                    if ripper.missingDiscs.isEmpty {
+                        Button("Rip and Upload") { ripper.rip(andUpload: true) }.buttonStyle(.borderedProminent).disabled(ripper.activity != .idle)
+                        Button("Rip") { ripper.rip(andUpload: false) }.disabled(ripper.activity != .idle)
+                    } else {
+                        // the other discs of the set are not in the folder yet: upload once they are, so the server gets one album
+                        Button("Rip") { ripper.rip(andUpload: false) }.buttonStyle(.borderedProminent).disabled(ripper.activity != .idle)
+                        Button("Rip and Upload") { ripper.rip(andUpload: true) }.disabled(ripper.activity != .idle)
+                    }
                     Toggle("Eject When Done", isOn: $ejectWhenDone).toggleStyle(.checkbox).padding(.leading, 8)
                     Spacer()
                     Button("Eject", systemImage: "eject") { Task { await ripper.eject() } }.disabled(ripper.activity == .ripping)
                 }
             }
+            if !ripper.missingDiscs.isEmpty && ripper.activity != .ripping {
+                Label("Disc \(ripper.missingDiscs.map(String.init).joined(separator: ", ")) still to rip: upload when the set is complete", systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+            }
             if let f = ripper.folder, ripper.items.allSatisfy({ $0.state == .done }) {
                 HStack(spacing: 8) {
                     Label((f.path as NSString).abbreviatingWithTildeInPath, systemImage: "folder").foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                     Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([f]) }.buttonStyle(.link)
+                    if ripper.activity != .uploaded { Button("Upload Folder", systemImage: "arrow.up.circle") { ripper.uploadFolder() }.buttonStyle(.link) }
                 }
             }
         }

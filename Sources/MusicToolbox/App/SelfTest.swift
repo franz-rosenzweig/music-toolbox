@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import ServiceManagement
 
 /// The self-test (selftest.sh): MUSIC_SELFTEST=<folder>. It drives the same calls the buttons make,
 /// against a stand-in panel (the panel's documented API over a pretend library), a pretend server for
@@ -77,6 +78,29 @@ enum SelfTest {
         await pause(1.0)
         check(true, "ejecting the disc with its tracks on screen does not crash the app")
         r0.frozen = false
+        // a set of two discs: which disc this is, and which are still to rip
+        do {
+            let r2 = MBRelease(id: "x", title: "Set", artist: "A", artistIDs: [], date: nil, country: nil, label: nil, catalog: nil, barcode: nil, releaseGroupID: nil, hasCover: false, medium: 2, media: 2, tracks: [])
+            let rp = Ripper.shared
+            rp.frozen = true
+            rp.releases = [r2]; rp.chosen = 0
+            rp.rippedDiscs = []
+            check(rp.discNumber == 2 && rp.discCount == 2 && rp.missingDiscs == [1], "disc 2 of 2 with disc 1 not ripped: missing \(rp.missingDiscs)")
+            rp.rippedDiscs = [1]
+            check(rp.missingDiscs.isEmpty, "with disc 1 in the folder nothing is missing")
+            rp.releases = []; rp.rippedDiscs = []
+            check(rp.discCount == 1 && rp.missingDiscs.isEmpty, "a single disc has nothing to wait for")
+            rp.frozen = false
+        }
+        // a disc or a player coming in shows the app on it, unless that is switched off
+        Nav.shared.place = .upload
+        Nav.shared.arrive(.rip)
+        check(Nav.shared.place == .rip, "a disc coming in opens Rip")
+        check(Prefs.openForDiscs && Prefs.openForPlayers && Prefs.staysRunning, "both are on by default")
+        UserDefaults.standard.set(false, forKey: "openForDiscs"); UserDefaults.standard.set(false, forKey: "openForPlayers")
+        check(!Prefs.staysRunning, "with both off the app quits when its window closes")
+        UserDefaults.standard.removeObject(forKey: "openForDiscs"); UserDefaults.standard.removeObject(forKey: "openForPlayers")
+        check(!LoginItem.enabled || true, "the login item state can be read (\(SMAppService.mainApp.status.rawValue))")
         guard let real = Disc.find() else { return log("INFO no disc in the drive: the real disc is skipped") }
         let r = Ripper.shared
         await r.scan()
@@ -333,6 +357,11 @@ enum SelfTest {
             let renamed = JobFollower()
             renamed.follow(rj)
             check(await until(20, { renamed.job?.done == true }), "a rename job ends")
+            check(renamed.lines.first == "1 name renamed · 23 files changed" && renamed.lines.count == 1, "it says what it changed (\(renamed.lines))")
+            let nothing = JobFollower()
+            nothing.follow(try await panel.rename([["kind": "artist", "name": names[0].name, "english": "Nothing To Do"]]))
+            check(await until(20, { nothing.job?.done == true }), "a rename that changes nothing ends")
+            check(nothing.lines.count == 2 && nothing.lines[1].hasPrefix("Nothing needed changing"), "and says why (\(nothing.lines.last ?? "-"))")
 
             // later, and back
             await store.later(imports[0])

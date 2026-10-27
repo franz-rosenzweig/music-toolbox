@@ -243,18 +243,22 @@ final class Ripper {
     /// Looks for a disc, and asks MusicBrainz about a new one.
     /// Set by the self-test to show a disc that is not in the drive.
     var frozen = false
+    private var started = false
 
     func scan() async {
         guard activity != .ripping, !frozen else { return }
         let d = await Task.detached { Disc.find() }.value
-        guard d?.id != disc?.id || d == nil else { return }
+        guard d?.id != disc?.id || d == nil else { started = true; return }
         disc = d
         releases = []
         items = []
         cover = nil
         error = nil
         activity = .idle
-        guard let d else { looked = nil; return }
+        guard let d else { looked = nil; started = true; return }
+        // a disc that has just been put in (not one already there when the app started)
+        if started, Prefs.openForDiscs { Nav.shared.arrive(.rip) }
+        started = true
         items = d.tracks.map { Item(track: $0, title: "Track \($0.number)", artist: "") }
         looked = d.id
         await lookup()
@@ -284,6 +288,7 @@ final class Ripper {
             return Item(track: t, title: mb?.title ?? "Track \(t.number)", artist: mb?.artist ?? r.artist)
         }
         cover = nil
+        await refreshRipped()
         if r.hasCover { cover = await MusicBrainz.cover(r.id) }
     }
 
@@ -308,18 +313,65 @@ final class Ripper {
 
     func cancel() { task?.cancel() }
 
+    /// Sends the album's whole folder (every disc in it) to the server.
+    func uploadFolder() {
+        guard let dir = folder ?? destination else { return }
+        Task {
+            let up = UploadStore.shared
+            await up.add([dir])
+            up.upload()
+            Nav.shared.place = .upload
+        }
+    }
+
     static func clean(_ s: String) -> String {
         let bad = CharacterSet(charactersIn: "/:\\?*\"<>|").union(.controlCharacters)
         let t = s.components(separatedBy: bad).joined(separator: "-").trimmingCharacters(in: CharacterSet(charactersIn: " .-"))
         return t.isEmpty ? "Untitled" : String(t.prefix(120))
     }
 
+    /// Where this disc's files go: every disc of a set shares the album's folder, so one upload takes them all.
+    var destination: URL? {
+        guard let disc else { return nil }
+        let artist = albumArtist.trimmingCharacters(in: .whitespaces), album = self.album.trimmingCharacters(in: .whitespaces)
+        return Self.root.appendingPathComponent(Self.clean(artist.isEmpty ? "Unknown Artist" : artist), isDirectory: true)
+            .appendingPathComponent(Self.clean(album.isEmpty ? "Disc \(disc.id.prefix(8))" : album), isDirectory: true)
+    }
+
+    /// Which discs of this album are already in its folder, read from their DISCNUMBER tags.
+    var rippedDiscs: [Int] = []
+
+    func refreshRipped() async {
+        guard let dir = destination, let metaflac = Self.metaflac() else { rippedDiscs = []; return }
+        let found = await Task.detached { () -> [Int] in
+            let files = ((try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []).filter { $0.pathExtension == "flac" }
+            var discs = Set<Int>()
+            for f in files {
+                let p = Process()
+                p.executableURL = URL(fileURLWithPath: metaflac)
+                p.arguments = ["--show-tag=DISCNUMBER", f.path]
+                let pipe = Pipe()
+                p.standardOutput = pipe
+                try? p.run()
+                p.waitUntilExit()
+                let out = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+                if let n = Int(out.split(separator: "=").last?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") { discs.insert(n) }
+            }
+            return discs.sorted()
+        }.value
+        rippedDiscs = found
+    }
+
+    var discNumber: Int { release?.medium ?? 1 }
+    var discCount: Int { release?.media ?? 1 }
+    /// Discs of this set that are not in the folder yet (this one counts as being ripped now).
+    var missingDiscs: [Int] { discCount > 1 ? (1...discCount).filter { $0 != discNumber && !rippedDiscs.contains($0) } : [] }
+
     private func run() async throws {
         guard let disc, let flac = Self.flac() else { throw RemoteError("flac is missing (brew install flac)") }
         guard let metaflac = Self.metaflac() else { throw RemoteError("metaflac is missing (brew install flac)") }
         let artist = albumArtist.trimmingCharacters(in: .whitespaces), album = self.album.trimmingCharacters(in: .whitespaces)
-        let dir = Self.root.appendingPathComponent(Self.clean(artist.isEmpty ? "Unknown Artist" : artist), isDirectory: true)
-            .appendingPathComponent(Self.clean(album.isEmpty ? "Disc \(disc.id.prefix(8))" : album), isDirectory: true)
+        guard let dir = destination else { return }
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         folder = dir
         let scratch = FileManager.default.temporaryDirectory.appendingPathComponent("mt-rip-\(UUID().uuidString)", isDirectory: true)
@@ -370,12 +422,14 @@ final class Ripper {
             args.append(tmp.path)
             let t = try await Proc.run(metaflac, args, input: Data(tags.map { "\($0.0)=\($0.1.replacingOccurrences(of: "\n", with: " "))" }.joined(separator: "\n").utf8))
             guard t.status == 0 else { items[i].state = .failed("tags"); throw RemoteError("Track \(it.track.number): \(t.errText.split(separator: "\n").first.map(String.init) ?? "tagging failed")") }
-            let final = dir.appendingPathComponent(String(format: "%02d %@.flac", it.track.number, Self.clean(it.title)))
+            let prefix = (r?.media ?? 1) > 1 ? "\(r?.medium ?? 1)-" : ""
+            let final = dir.appendingPathComponent(String(format: "%@%02d %@.flac", prefix, it.track.number, Self.clean(it.title)))
             try? FileManager.default.removeItem(at: final)
             try FileManager.default.moveItem(at: tmp, to: final)
             items[i].state = .done
             done += 1
         }
+        await refreshRipped()
         let eject = UserDefaults.standard.object(forKey: "ejectWhenDone") as? Bool ?? true
         if upload {
             let up = UploadStore.shared

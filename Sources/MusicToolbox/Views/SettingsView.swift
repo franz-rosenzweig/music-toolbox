@@ -9,6 +9,10 @@ struct SettingsForm: View {
     @AppStorage("sshTarget") private var storedSSH = ""
     @AppStorage("musicPath") private var storedMusic = ""
     @AppStorage("ripsFolder") private var storedRips = ""
+    @AppStorage("openForDiscs") private var openForDiscs = true
+    @AppStorage("openForPlayers") private var openForPlayers = true
+    @State private var atLogin = LoginItem.enabled
+    @State private var loginError: String?
 
     @State private var url = ""
     @State private var user = ""
@@ -32,6 +36,14 @@ struct SettingsForm: View {
                 TextField("SSH", text: $ssh, prompt: Text("user@host"))
                 TextField("Music folder", text: $music, prompt: Text("/srv/media/music"))
                 if let r = sshResult { status(r, ok: r == "Connected") }
+            }
+            Section("When Connected") {
+                Toggle("Open for Audio CDs", isOn: $openForDiscs)
+                Toggle("Open for Players", isOn: $openForPlayers)
+                Toggle("Open at Login", isOn: Binding(get: { atLogin }, set: { on in
+                    do { try LoginItem.set(on); atLogin = LoginItem.enabled; loginError = nil } catch { atLogin = LoginItem.enabled; loginError = "Can’t change the login item" }
+                }))
+                if let e = loginError { Label(e, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange) }
             }
             Section("Rip") {
                 TextField("Rips folder", text: $rips, prompt: Text("~/Music/CD Rips"))

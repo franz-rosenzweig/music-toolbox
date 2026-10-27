@@ -200,6 +200,13 @@ final class JobFollower {
         }
         if let n = job?.result["found"] as? NSNumber, job?.kind.contains("lookup") == true { return ["Found \(n) lyrics files"] }
         if let summary = job?.result["summary"] as? String { return [summary] }
+        if job?.kind == "names", let r = job?.result {
+            let n = (r["names"] as? [Any])?.count ?? 0
+            let files = (r["files"] as? NSNumber)?.intValue ?? 0
+            var out = ["\(n) \(n == 1 ? "name" : "names") renamed" + (files > 0 ? " · \(files) files changed" : "")]
+            if let w = r["warning"] as? String, !w.isEmpty { out.append(w) }
+            return out
+        }
         if let size = job?.result["size"] as? [Any], size.count == 2, job?.kind == "cover" { return ["Cover saved · \(size[0])×\(size[1])"] }
         guard let a = job?.result["albums"] as? [[String: Any]] else { return [] }
         return a.map { al in

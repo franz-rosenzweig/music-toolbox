@@ -120,6 +120,7 @@ final class DeviceStore {
     var candidates: [Volume] { volumes.filter { !$0.isDevice } }
 
     private var watching: [NSObjectProtocol] = []
+    private var started = false
 
     init() {
         let nc = NSWorkspace.shared.notificationCenter
@@ -132,7 +133,13 @@ final class DeviceStore {
     }
 
     func refresh() async {
-        volumes = await Task.detached { Self.scan() }.value
+        let found = await Task.detached { Self.scan() }.value
+        let known = Set(devices.map(\.id))
+        let arrived = found.first { $0.isDevice && !known.contains($0.id) }
+        volumes = found
+        // a player that has just been connected (not one already there when the app started)
+        if started, Prefs.openForPlayers, let v = arrived { Nav.shared.arrive(.device(v.id)) }
+        started = true
     }
 
     /// The panel's device profiles, when it can be asked; the built-in ones until then.

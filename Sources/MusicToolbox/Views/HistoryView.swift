@@ -216,7 +216,7 @@ struct RunView: View {
     }
 
     static func fieldLabel(_ f: String) -> String {
-        switch f { case "file_created": "Added"; case "file_replaced": "Replaced"; case "file_removed": "Removed"; case "canonical_name": "English name"; default: f }
+        switch f { case "file_created": "Added"; case "file_replaced": "Replaced"; case "file_removed": "Removed"; case "canonical_name": "English name"; case "vorbis:ALBUMARTIST": "Album artist"; default: f }
     }
 
     private func load() async {
