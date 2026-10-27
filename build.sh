@@ -6,13 +6,15 @@
 # MUSIC_ID, MUSIC_NAME and MUSIC_OUT build it under another id, name and folder (selftest.sh's, so
 # the test never touches the real app's settings or Keychain item). MUSIC_SIGN picks the signing
 # identity ("-" for ad hoc); by default an Apple Development identity from the keychain, else ad hoc.
+# MUSIC_VERSION and MUSIC_BUILD set the version numbers (release.sh); MUSIC_KEYCHAIN names the keychain
+# the identity is in when it is not one of the searched ones.
 set -euo pipefail
 cd "${0:A:h}"
 
 ID=${MUSIC_ID:-xyz.tiresia.musictoolbox}
 NAME=${MUSIC_NAME:-Music Toolbox}
 VERSION=${MUSIC_VERSION:-0.1.0}
-BUILD=$(git rev-list --count HEAD 2>/dev/null || echo 1)
+BUILD=${MUSIC_BUILD:-$(git rev-list --count HEAD 2>/dev/null || echo 1)}
 OUT=${MUSIC_OUT:-build}
 APP="$OUT/$NAME.app"
 
@@ -61,6 +63,6 @@ ENT
 # an Apple Development identity if the keychain has one, ad hoc otherwise; none is written into
 # this repository
 IDENTITY=${MUSIC_SIGN:-$(security find-identity -v -p codesigning | sed -n 's/^ *[0-9]*) \([0-9A-F]*\) "Apple Development.*/\1/p' | head -1)}
-codesign --force --options runtime --entitlements "$OUT/MusicToolbox.entitlements" --sign "${IDENTITY:--}" "$APP"
+codesign --force --options runtime --entitlements "$OUT/MusicToolbox.entitlements" --sign "${IDENTITY:--}" ${MUSIC_KEYCHAIN:+--keychain "$MUSIC_KEYCHAIN"} "$APP"
 [[ -n $IDENTITY ]] || echo "note: signed ad hoc; the Keychain asks again after each build"
 echo "built $APP"
