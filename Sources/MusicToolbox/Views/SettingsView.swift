@@ -8,16 +8,12 @@ struct SettingsForm: View {
     @AppStorage("panelUser") private var storedUser = ""
     @AppStorage("sshTarget") private var storedSSH = ""
     @AppStorage("musicPath") private var storedMusic = ""
-    @AppStorage("queuePath") private var storedQueue = ""
-    @AppStorage("syncLogPath") private var storedLog = ""
 
     @State private var url = ""
     @State private var user = ""
     @State private var password = ""
     @State private var ssh = ""
     @State private var music = ""
-    @State private var queue = ""
-    @State private var log = ""
     @State private var panelResult: String?
     @State private var sshResult: String?
     @State private var testing = false
@@ -33,8 +29,6 @@ struct SettingsForm: View {
             Section("Copy to devices") {
                 TextField("SSH", text: $ssh, prompt: Text("user@host"))
                 TextField("Music folder", text: $music, prompt: Text("/srv/media/music"))
-                TextField("Queue file", text: $queue, prompt: Text("/srv/docker/beets/config/dap-queue.txt"))
-                TextField("Sync log", text: $log, prompt: Text("/srv/docker/beets/config/dap-sync-log.jsonl"))
                 if let r = sshResult { status(r, ok: r == "Connected") }
             }
             Section {
@@ -51,7 +45,7 @@ struct SettingsForm: View {
         .formStyle(.grouped)
         .onAppear {
             url = storedURL; user = storedUser; password = Keychain.get("panel") ?? ""
-            ssh = storedSSH; music = storedMusic; queue = storedQueue; log = storedLog
+            ssh = storedSSH; music = storedMusic
         }
     }
 
@@ -63,16 +57,21 @@ struct SettingsForm: View {
         testing = true
         defer { testing = false }
         Keychain.set(password, for: "panel")
-        storedURL = url; storedUser = user; storedSSH = ssh; storedMusic = music; storedQueue = queue; storedLog = log
+        storedURL = url; storedUser = user; storedSSH = ssh; storedMusic = music
         panelResult = nil
         sshResult = nil
         if let panel = Config.panel {
-            do { try await panel.health(); panelResult = "Connected" } catch let e as PanelError { panelResult = e.label } catch { panelResult = "Failed" }
+            do {
+                try await panel.health()
+                _ = try await panel.devices()
+                panelResult = "Connected"
+                await DeviceStore.shared.loadProfiles()
+            } catch let e as PanelError { panelResult = e.label } catch { panelResult = "Failed" }
         } else {
             panelResult = "Not a valid address"
         }
         if let remote = Config.remote {
-            let o = try? await Remote(target: remote.target, musicPath: remote.musicPath, queuePath: remote.queuePath, syncLogPath: remote.syncLogPath).run("test -d \(Remote.quote(remote.musicPath))")
+            let o = try? await remote.run("test -d \(Remote.quote(remote.musicPath))")
             sshResult = o == nil ? "Can’t run ssh" : o!.status == 0 ? "Connected" : o!.status == 255 ? DeviceSession.describe(RemoteError(o!.errText)) : "Music folder not found"
         }
     }

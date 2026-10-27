@@ -20,6 +20,7 @@ struct MusicToolboxApp: App {
             }
             CommandMenu("Go") {
                 Button("Upload") { Nav.shared.place = .upload }.keyboardShortcut("1", modifiers: .command)
+                Button("Library") { Nav.shared.place = .library }.keyboardShortcut("2", modifiers: .command)
             }
         }
 
@@ -31,6 +32,7 @@ struct MusicToolboxApp: App {
 
 enum Place: Hashable {
     case upload
+    case library
     case device(String)
     case setup(String)
 }

@@ -29,7 +29,7 @@ enum Rsync {
 
     static func common(_ remote: Remote, _ profile: DeviceProfile) -> [String] {
         ["--modify-window=2", "--no-perms", "--no-owner", "--no-group", "-8", "-s", "-e", remote.sshCommand]
-            + (keep + profile.protect + junk).map { "--exclude=\($0)" }
+            + (keep + (profile.protect ?? []) + junk).map { "--exclude=\($0)" }
     }
 
     /// "  1,234,567  45%  12.34MB/s  0:00:12 (xfr#3, to-chk=7/20)"
@@ -46,11 +46,27 @@ final class DeviceSession {
         var entry: String
         var size: Int64
         var missing: Bool
+        var kind = "album"
+        var artist: String?
+        var album: String?
+        var albumID: String?
         var state: State = .waiting
         var id: String { entry }
         private var parts: [Substring] { entry.split(separator: "/") }
-        var title: String { parts.last.map(String.init) ?? entry }
-        var subtitle: String { parts.dropLast().joined(separator: " · ") }
+        var title: String { kind == "album" ? (album ?? parts.last.map(String.init) ?? entry) : (parts.last.map(String.init) ?? entry) }
+        var subtitle: String {
+            if kind == "album" { return artist ?? parts.dropLast().joined(separator: " · ") }
+            return [artist, album].compactMap { $0 }.joined(separator: " · ")
+        }
+
+        init(entry: String, size: Int64, missing: Bool, kind: String = "album", artist: String? = nil, album: String? = nil, albumID: String? = nil) {
+            self.entry = entry; self.size = size; self.missing = missing; self.kind = kind
+            self.artist = artist; self.album = album; self.albumID = albumID
+        }
+
+        init(_ q: Api.QueueEntry) {
+            self.init(entry: q.entry, size: max(0, q.bytes), missing: q.gone ?? (q.bytes < 0), kind: q.kind, artist: q.artist, album: q.album, albumID: q.albumId)
+        }
     }
 
     struct Summary: Identifiable {
@@ -71,10 +87,13 @@ final class DeviceSession {
     }
 
     enum Mode: String { case queue, all, mirror }
-    enum Activity: Equatable { case idle, loading, copying, planning }
+    enum Activity: Equatable { case idle, loading, copying, planning, fixing }
 
     private(set) var volume: Volume
     var items: [Item] = []
+    var issues: Api.Issues?
+    var fixed: Int?
+    var fixRun: String?
     var libraryBytes: Int64?
     var onDevice: Int64?
     var activity: Activity = .idle
@@ -94,6 +113,7 @@ final class DeviceSession {
 
     init(_ volume: Volume) { self.volume = volume }
 
+    var profile: DeviceProfile { volume.profile }
     var queueBytes: Int64 { items.filter { !$0.missing }.reduce(0) { $0 + $1.size } }
     var busy: Bool { activity != .idle }
     var left: Double? { rate > 0 && bytesTotal > bytesDone ? Double(bytesTotal - bytesDone) / rate : nil }
@@ -108,20 +128,16 @@ final class DeviceSession {
     }
 
     private func read() async {
-        guard let remote = Config.remote else { error = "Add the SSH address in Settings"; return }
+        guard let panel = Config.panel else { error = "Sign in in Settings"; return }
         do {
-            let entries = try await remote.queue()
-            let sizes = try await remote.sizes(of: entries)
-            items = entries.map { e in
-                let s = sizes[e] ?? -1
-                return Item(entry: e, size: max(0, s), missing: s < 0)
-            }
+            items = profile.hasQueue ? try await panel.queue(profile.id).map(Item.init) : []
             error = nil
         } catch is CancellationError {
         } catch {
             self.error = Self.describe(error)
         }
-        if let used = try? await remote.librarySize() { libraryBytes = used }
+        issues = try? await panel.issues(profile.id)
+        if let remote = Config.remote, let used = try? await remote.librarySize() { libraryBytes = used }
         await measure()
     }
 
@@ -144,6 +160,7 @@ final class DeviceSession {
     }
 
     static func describe(_ error: Error) -> String {
+        if let p = error as? PanelError { return p.label }
         let m = (error as? RemoteError)?.detail ?? error.localizedDescription
         if m.contains("Permission denied") { return "The key was refused" }
         if m.contains("timed out") || m.contains("No route") || m.contains("refused") || m.contains("Could not resolve") { return "Can’t reach the server" }
@@ -158,9 +175,10 @@ final class DeviceSession {
     func cancel() { task?.cancel() }
 
     func removeFromQueue(_ item: Item) {
-        guard let remote = Config.remote else { return }
+        guard let panel = Config.panel else { return }
+        let device = profile.id
         Task {
-            try? await remote.complete([item.entry])
+            try? await panel.unqueue(device, [item.entry])
             items.removeAll { $0.entry == item.entry }
         }
     }
@@ -253,7 +271,7 @@ final class DeviceSession {
         } catch is CancellationError {
             result = "cancelled"
         }
-        await Task { await self.finish(.queue, result, copied: copied, remote: remote, log: log,
+        await Task { await self.finish(.queue, result, copied: copied, log: log,
                                        detail: failed.isEmpty ? "\(todo.count) queued item(s)" : "\(failed.count) of \(todo.count) failed: \(failed.joined(separator: "; "))") }.value
         if failed.isEmpty, result == "finished" { fraction = 1 }
         if !failed.isEmpty { error = failed.count == 1 ? failed[0] : "\(failed.count) did not copy" }
@@ -285,7 +303,7 @@ final class DeviceSession {
         let need = try await remote.librarySize()
         libraryBytes = need
         try await ensureSpace(need)
-        let queued = (try? await remote.queue()) ?? []
+        let queued = profile.hasQueue ? ((try? await Config.panel?.queue(profile.id)) ?? []).map(\.entry) : []
         let log = FileManager.default.temporaryDirectory.appendingPathComponent("mt-run-\(UUID().uuidString).log")
         defer { try? FileManager.default.removeItem(at: log) }
         var args = ["-rt", "--partial", "--no-inc-recursive", "--info=name1,progress2", "--log-file=\(log.path)", "--log-file-format=%i %n"]
@@ -306,15 +324,16 @@ final class DeviceSession {
         } catch is CancellationError {
             result = "cancelled"
         }
-        await Task { await self.finish(m, result, copied: result == "finished" ? queued : [], remote: remote, log: log, detail: detail) }.value
+        await Task { await self.finish(m, result, copied: result == "finished" ? queued : [], log: log, detail: detail) }.value
         if result == "finished" { fraction = 1; await read() }
     }
 
     /// Clears macOS's ._ twins (exFAT keeps xattrs as files), takes the copied entries off the queue
     /// and tells the panel. Runs even when the copy was cancelled, so what did copy is not copied again.
-    private func finish(_ m: Mode, _ result: String, copied: [String], remote: Remote, log: URL, detail: String) async {
+    private func finish(_ m: Mode, _ result: String, copied: [String], log: URL, detail: String) async {
         _ = try? await Proc.run("/usr/bin/dot_clean", ["-m", volume.url.path])
-        try? await remote.complete(copied)
+        let panel = Config.panel
+        try? await panel?.complete(profile.id, copied)
         let text = (try? Data(contentsOf: log)).map { String(decoding: $0, as: UTF8.self) } ?? ""
         let lines = text.split(separator: "\n")
         let n = lines.filter { $0.contains(" >f") }.count
@@ -328,12 +347,9 @@ final class DeviceSession {
         history.insert(Summary(mode: m, result: result, copied: n, removed: removed, seconds: secs), at: 0)
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-        let row: [String: Any] = ["ts": f.string(from: Date()), "mode": m.rawValue, "result": result, "copied": n, "removed": removed,
-                                  "seconds": secs, "mac": ProcessInfo.processInfo.hostName.split(separator: ".").first.map(String.init) ?? "",
-                                  "rsync": "3", "app": "music-toolbox", "detail": String(detail.prefix(300))]
-        if let d = try? JSONSerialization.data(withJSONObject: row, options: [.withoutEscapingSlashes]) {
-            await remote.report(String(decoding: d, as: UTF8.self))
-        }
+        await panel?.syncLog(["ts": f.string(from: Date()), "mode": m.rawValue, "result": result, "copied": n, "removed": removed,
+                              "seconds": secs, "mac": ProcessInfo.processInfo.hostName.split(separator: ".").first.map(String.init) ?? "",
+                              "rsync": "3", "app": "music-toolbox", "detail": String(detail.prefix(300))])
         if m == .queue || result == "finished" { items.removeAll { copied.contains($0.entry) } }
     }
 
@@ -385,6 +401,34 @@ final class DeviceSession {
     func confirmMirror() {
         dryRun = nil
         mirror()
+    }
+
+    // MARK: fixing what a device cannot play
+
+    /// The panel re-encodes what it can fix, in place and undoably; the fixed albums join the queue.
+    func fix() {
+        guard activity == .idle, let panel = Config.panel else { return }
+        error = nil
+        fixed = nil
+        fixRun = nil
+        fraction = 0
+        start(.fixing) {
+            do {
+                let f = try await panel.fix(self.profile.id)
+                self.fixRun = f.run
+                var job = try await panel.job(f.job)
+                while job.running {
+                    self.fraction = job.progress
+                    try await Task.sleep(for: .seconds(1))
+                    job = try await panel.job(f.job)
+                }
+                self.fixed = job.count("fixed") ?? job.int("found")
+                if !job.done { self.error = job.error ?? "The fix stopped" }
+            } catch is CancellationError {} catch { self.error = Self.describe(error) }
+            self.fraction = nil
+            self.issues = try? await panel.issues(self.profile.id)
+            if self.profile.hasQueue, let q = try? await panel.queue(self.profile.id) { self.items = q.map(Item.init) }
+        }
     }
 
     /// Clears the ._ twins once more first: they are what a player's database would trip over.

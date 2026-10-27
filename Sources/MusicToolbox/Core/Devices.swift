@@ -2,35 +2,42 @@ import AppKit
 import Foundation
 import Observation
 
-/// What a kind of device allows and keeps for itself. The server is adding the real device
-/// profiles; until its API lands these two are built in, and the limits are optional so that a
-/// profile from the server can fill them in.
+/// What a kind of device allows and keeps for itself, as the panel describes it (GET /api/devices).
+/// The H2 is built in for the time before the panel has been asked; every limit is optional, and a
+/// missing one is not checked.
 struct DeviceProfile: Codable, Identifiable, Hashable, Sendable {
     var id: String
     var name: String
     /// rsync patterns, anchored to the music folder, that the device owns and a copy must never touch
-    var protect: [String] = []
+    var protect: [String]?
     var formats: [String]?
     var maxSampleRate: Int?
     var maxBitDepth: Int?
-    var maxFlacBlockSize: Int?
-    var convertTo: String?
+    var maxFlacBlocksize: Int?
+    /// does the device have a queue on the server
+    var queue: Bool?
+    /// the checks the panel can fix in place
+    var fixes: [String]?
 
     static let h2 = DeviceProfile(id: "hifi-walker-h2", name: "HiFi Walker H2",
                                   protect: ["/.rockbox/", "/settings.txt", "/update.upt", "/*.upt"],
-                                  maxFlacBlockSize: 4608)
-    static let generic = DeviceProfile(id: "generic", name: "Other")
+                                  maxFlacBlocksize: 4608, queue: true, fixes: ["flac_blocksize"])
+    static let generic = DeviceProfile(id: "generic", name: "Other", queue: false)
     static let builtIn = [h2, generic]
 
-    static func named(_ id: String?) -> DeviceProfile { builtIn.first { $0.id == id } ?? .h2 }
+    nonisolated(unsafe) static var all = builtIn
+
+    static func named(_ id: String?) -> DeviceProfile { all.first { $0.id == id } ?? builtIn.first { $0.id == id } ?? .h2 }
+
+    var hasQueue: Bool { queue ?? false }
+    var canFix: Bool { !(fixes ?? []).isEmpty }
 
     /// The limits worth a label on the device's page.
     var limits: [String] {
         var out: [String] = []
-        if let f = formats { out.append(f.map { $0.uppercased() }.joined(separator: " ")) }
-        if let r = maxSampleRate { out.append("≤ \(Double(r) / 1000) kHz".replacingOccurrences(of: ".0 ", with: " ")) }
+        if let r = maxSampleRate { out.append(String(format: "≤ %g kHz", Double(r) / 1000)) }
         if let b = maxBitDepth { out.append("≤ \(b)-bit") }
-        if let n = maxFlacBlockSize { out.append("FLAC block ≤ \(n)") }
+        if let n = maxFlacBlocksize { out.append("FLAC block ≤ \(n)") }
         return out
     }
 }
@@ -108,6 +115,7 @@ final class DeviceStore {
     static let shared = DeviceStore()
 
     var volumes: [Volume] = []
+    var profiles: [DeviceProfile] = DeviceProfile.all
     var devices: [Volume] { volumes.filter(\.isDevice) }
     var candidates: [Volume] { volumes.filter { !$0.isDevice } }
 
@@ -120,11 +128,19 @@ final class DeviceStore {
                 Task { @MainActor in await self?.refresh() }
             })
         }
-        Task { await refresh() }
+        Task { await refresh(); await loadProfiles() }
     }
 
     func refresh() async {
         volumes = await Task.detached { Self.scan() }.value
+    }
+
+    /// The panel's device profiles, when it can be asked; the built-in ones until then.
+    func loadProfiles() async {
+        guard let panel = Config.panel, let p = try? await panel.devices(), !p.isEmpty else { return }
+        DeviceProfile.all = p + DeviceProfile.builtIn.filter { b in !p.contains { $0.id == b.id } && b.id == "generic" }
+        profiles = DeviceProfile.all
+        await refresh()
     }
 
     /// Every mounted volume that is not the Mac's own disk. The marker decides which are devices.

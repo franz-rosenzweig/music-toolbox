@@ -19,6 +19,7 @@ struct RootView: View {
                 Label("Upload", systemImage: "arrow.up.circle")
                     .badge(uploads.jobs.filter { $0.state != .done }.count)
                     .tag(Place.upload)
+                Label("Library", systemImage: "magnifyingglass").tag(Place.library)
                 Section("Devices") {
                     ForEach(store.devices) { v in
                         Label(v.title, systemImage: "sdcard")
@@ -41,6 +42,7 @@ struct RootView: View {
             } else {
                 switch nav.place {
                 case .upload, nil: UploadView()
+                case .library: LibraryView()
                 case .device(let id):
                     if let v = store.volumes.first(where: { $0.id == id }) { DeviceView(session: nav.session(for: v)) } else { Color.clear }
                 case .setup(let id):
@@ -48,6 +50,7 @@ struct RootView: View {
                 }
             }
         }
+        .safeAreaInset(edge: .bottom) { PlayerBar() }
         .onChange(of: store.volumes) { _, vols in
             if case .device(let id) = nav.place, !vols.contains(where: { $0.id == id }) { nav.place = .upload }
             if case .setup(let id) = nav.place, !vols.contains(where: { $0.id == id }) { nav.place = .upload }

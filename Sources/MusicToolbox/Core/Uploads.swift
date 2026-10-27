@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Observation
 
@@ -66,6 +67,7 @@ final class UploadJob: Identifiable {
     var note = ""
     var imported: Int?
     var needLook: Int?
+    var hashes: [String: String] = [:]
 
     var total: Int64 { files.reduce(0) { $0 + $1.size } }
     var fraction: Double { total > 0 ? min(1, Double(sent) / Double(total)) : 0 }
@@ -178,58 +180,35 @@ final class UploadStore {
         job.state = .sending
         job.note = ""
         do {
-            var plan = try await panel.start(name: job.name, files: job.files.map { ($0.path, $0.size) })
-            job.batch = plan.batch
-            save()
-            // A request cut off by a pause or a drop can still be draining on the server. Starting
-            // from its size too early would leave its late bytes in the middle of the file.
-            if plan.resumed || plan.have.contains(where: { $0 > 0 }) { plan.have = try await Self.settled(panel, plan.batch, plan.have) }
-            let byPath = Dictionary(job.files.map { ($0.path, $0) }, uniquingKeysWith: { a, _ in a })
-            let total = plan.files.reduce(0) { $0 + $1.size }
-            var have = plan.have
-            var before: Int64 = 0                     // bytes of the files already complete
-            let began = Date(), began0 = have.reduce(0, +)
-            func show(_ sent: Int64) {
-                job.sent = sent
-                let t = Date().timeIntervalSince(began)
-                if t > 1 { job.rate = Double(sent - began0) / t }
+            // a checksum per file, so the panel can tell if anything arrives damaged
+            if job.hashes.count != job.files.count {
+                job.note = "Checking files"
+                let files = job.files
+                let hashes = try await Task.detached { try Self.hashes(files) }.value
+                job.hashes = hashes
+                job.note = ""
             }
-            show(have.reduce(0, +))
-            for (i, meta) in plan.files.enumerated() {
-                guard let local = byPath[meta.path] else { throw PanelError.refused("Changed") }
-                var offset = have[i]
-                var wait = 1.0
-                while offset < meta.size {
-                    try Task.checkCancellation()
-                    let data = try Self.read(local.url, at: offset, count: min(Self.chunk, meta.size - offset))
-                    let start = before + offset
-                    do {
-                        let size = try await panel.chunk(batch: plan.batch, index: i, offset: offset, data: data) { sent in
-                            Task { @MainActor in if job.state == .sending { show(start + sent) } }
-                        }
-                        offset = size
-                        wait = 1
-                        job.note = ""
-                        show(before + offset)
-                    } catch let e as PanelError where e.fatal {
-                        throw e
-                    } catch is CancellationError {
-                        throw CancellationError()
-                    } catch {
-                        job.note = "Retrying in \(Int(wait)) s"
-                        try await Task.sleep(for: .seconds(wait))
-                        wait = min(wait * 2, 30)
-                        if let h = try? await Self.settled(panel, plan.batch, nil), i < h.count { offset = h[i]; show(before + offset) }
+            var again = 0
+            while true {
+                try await send(job, panel)
+                job.sent = job.total
+                job.note = ""
+                job.state = .importing
+                save()
+                do {
+                    try await importing(job, panel)
+                    return
+                } catch let e as PanelError {
+                    // the panel dropped files that failed their checksum, or says some are short: send them again
+                    switch e {
+                    case .bad, .incomplete where again < 3:
+                        again += 1
+                        job.state = .sending
+                        job.note = "Sending again"
+                    default: throw e
                     }
                 }
-                before += meta.size
-                have[i] = meta.size
             }
-            job.sent = total
-            job.note = ""
-            job.state = .importing
-            save()
-            try await importing(job, panel)
         } catch is CancellationError {
             job.state = .paused
             job.note = ""
@@ -242,32 +221,80 @@ final class UploadStore {
         }
     }
 
-    private func importing(_ job: UploadJob, _ panel: Panel) async throws {
-        guard let batch = job.batch else { return }
-        var card = ImportCard(html: try await panel.finish(batch: batch))
-        var polls = 0
-        while card.running, let id = card.jobID, polls < 450 {
-            try await Task.sleep(for: .seconds(2))
-            card = ImportCard(html: try await panel.jobCard(id))
-            polls += 1
+    /// Every file, in chunks, each at the offset the panel already has.
+    private func send(_ job: UploadJob, _ panel: Panel) async throws {
+        let plan = try await panel.start(name: job.name, files: job.files.map { ($0.path, $0.size, job.hashes[$0.path]) })
+        job.batch = plan.batch
+        save()
+        let byPath = Dictionary(job.files.map { ($0.path, $0) }, uniquingKeysWith: { a, _ in a })
+        var have = plan.have
+        var before: Int64 = 0                     // bytes of the files already complete
+        let began = Date(), began0 = have.reduce(0, +)
+        func show(_ sent: Int64) {
+            job.sent = sent
+            let t = Date().timeIntervalSince(began)
+            if t > 1 { job.rate = Double(sent - began0) / t }
         }
-        job.imported = card.imported
-        job.needLook = card.needLook
-        job.state = card.ok || card.imported != nil ? .done : .failed
-        if job.state == .failed { job.note = "Import failed" }
+        show(have.reduce(0, +))
+        for (i, meta) in plan.files.enumerated() {
+            guard let local = byPath[meta.path] else { throw PanelError.refused("Changed") }
+            var offset = have[i]
+            var wait = 1.0
+            while offset < meta.size {
+                try Task.checkCancellation()
+                let data = try Self.read(local.url, at: offset, count: min(Self.chunk, meta.size - offset))
+                let start = before + offset
+                do {
+                    let size = try await panel.chunk(batch: plan.batch, index: i, offset: offset, data: data) { sent in
+                        Task { @MainActor in if job.state == .sending { show(start + sent) } }
+                    }
+                    offset = size
+                    wait = 1
+                    job.note = ""
+                    show(before + offset)
+                } catch let e as PanelError where e.fatal {
+                    throw e
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch {
+                    // the panel writes each chunk where it belongs, so a late duplicate of this one does no harm
+                    job.note = "Retrying in \(Int(wait)) s"
+                    try await Task.sleep(for: .seconds(wait))
+                    wait = min(wait * 2, 30)
+                    if let h = try? await panel.have(batch: plan.batch), i < h.count { offset = h[i]; show(before + offset) }
+                }
+            }
+            before += meta.size
+            have[i] = meta.size
+        }
     }
 
-    /// The server's byte counts once they have stopped moving for a second.
-    nonisolated static func settled(_ panel: Panel, _ batch: String, _ first: [Int64]?) async throws -> [Int64] {
-        var last: [Int64]
-        if let first { last = first } else { last = try await panel.have(batch: batch) }
-        for _ in 0..<30 {
-            try await Task.sleep(for: .seconds(1))
-            let now = try await panel.have(batch: batch)
-            if now == last { return now }
-            last = now
+    private func importing(_ job: UploadJob, _ panel: Panel) async throws {
+        guard let batch = job.batch else { return }
+        let id = try await panel.finish(batch: batch)
+        var j = try await panel.job(id)
+        var polls = 0
+        while j.running, polls < 450 {
+            try await Task.sleep(for: .seconds(2))
+            j = try await panel.job(id)
+            polls += 1
         }
-        return last
+        job.imported = j.int("tracks_imported")
+        job.needLook = j.int("tracks_left")
+        job.state = j.done ? .done : .failed
+        if !j.done { job.note = j.error ?? "Import failed" }
+    }
+
+    nonisolated static func hashes(_ files: [StagedFile]) throws -> [String: String] {
+        var out: [String: String] = [:]
+        for f in files {
+            let h = try FileHandle(forReadingFrom: f.url)
+            defer { try? h.close() }
+            var sha = SHA256()
+            while let d = try h.read(upToCount: 1 << 20), !d.isEmpty { sha.update(data: d) }
+            out[f.path] = sha.finalize().map { String(format: "%02x", $0) }.joined()
+        }
+        return out
     }
 
     nonisolated static func read(_ url: URL, at offset: Int64, count: Int64) throws -> Data {

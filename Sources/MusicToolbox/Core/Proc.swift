@@ -80,12 +80,12 @@ final class LineSplitter: @unchecked Sendable {
     }
 }
 
-/// The music on the server, reached the way the Mac scripts reach it: ssh and rsync.
+/// The music on the server, reached the way the Mac scripts reach it: ssh and rsync. The queue, the
+/// sync history and everything else about the library go through the panel's API; ssh is only the road
+/// the files travel.
 struct Remote: Sendable {
     var target: String
     var musicPath: String
-    var queuePath: String
-    var syncLogPath: String
 
     static var sshExe: String { ProcessInfo.processInfo.environment["MUSIC_SSH"] ?? "/usr/bin/ssh" }
 
@@ -101,50 +101,9 @@ struct Remote: Sendable {
         try await Proc.run(Remote.sshExe, Remote.sshOptions + [target, command], input: input)
     }
 
-    func queue() async throws -> [String] {
-        let o = try await run("cat \(Remote.quote(queuePath)) 2>/dev/null")
-        return o.text.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
-    }
-
-    /// Size of each queued entry in bytes, -1 for one that is no longer in the library.
-    func sizes(of entries: [String]) async throws -> [String: Int64] {
-        guard !entries.isEmpty else { return [:] }
-        let script = "cd \(Remote.quote(musicPath)) && while IFS= read -r e; do if [ -e \"$e\" ]; then printf '%s\\t%s\\n' \"$(du -sb -- \"$e\" | cut -f1)\" \"$e\"; else printf -- '-1\\t%s\\n' \"$e\"; fi; done"
-        let o = try await run(script, input: Data((entries.joined(separator: "\n") + "\n").utf8))
-        guard o.status == 0 else { throw RemoteError(o.errText) }
-        var out: [String: Int64] = [:]
-        for line in o.text.split(separator: "\n") {
-            let parts = line.split(separator: "\t", maxSplits: 1, omittingEmptySubsequences: false)
-            if parts.count == 2, let n = Int64(parts[0]) { out[String(parts[1])] = n }
-        }
-        return out
-    }
-
     func librarySize() async throws -> Int64 {
         let o = try await run("du -sb \(Remote.quote(musicPath)) | cut -f1")
         return Int64(o.text.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
-    }
-
-    /// Takes the copied entries off the queue and onto the done list, under the lock the panel uses,
-    /// so anything queued while the copy ran stays queued.
-    func complete(_ entries: [String]) async throws {
-        guard !entries.isEmpty else { return }
-        let q = Remote.quote(queuePath)
-        let script = """
-        q=\(q); d="${q%.txt}.done.txt"; t=$(mktemp); cat > "$t"
-        exec 9>>"$q.lock"; command -v flock >/dev/null 2>&1 && flock -x 9
-        grep -xFf "$t" "$q" >> "$d" 2>/dev/null
-        rest=$(grep -vxFf "$t" "$q" 2>/dev/null)
-        if [ -n "$rest" ]; then printf '%s\\n' "$rest" > "$q"; else : > "$q"; fi
-        rm -f "$t"
-        """
-        let o = try await run(script, input: Data((entries.joined(separator: "\n") + "\n").utf8))
-        guard o.status == 0 else { throw RemoteError(o.errText) }
-    }
-
-    /// One JSON line for the panel's sync history. A server that cannot be reached just means no line.
-    func report(_ line: String) async {
-        _ = try? await run("cat >> \(Remote.quote(syncLogPath))", input: Data((line + "\n").utf8))
     }
 
     /// Can rsync read the library at all? Fails fast with the reason.

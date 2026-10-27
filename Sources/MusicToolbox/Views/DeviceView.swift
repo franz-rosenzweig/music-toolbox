@@ -15,7 +15,8 @@ struct DeviceView: View {
                 }
                 if session.activity == .copying { progress }
                 if let d = session.dryRun { dryRun(d) }
-                queue
+                if session.profile.canFix || session.issues != nil { issuesSection }
+                if session.profile.hasQueue { queue }
                 if !session.history.isEmpty { history }
             }
             .padding(28)
@@ -24,12 +25,14 @@ struct DeviceView: View {
         .navigationTitle(v.title)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                Button("Copy Queue", systemImage: "arrow.down.to.line") { session.copyQueue() }
-                    .labelStyle(.titleAndIcon)
-                    .buttonStyle(.borderedProminent)
-                    .disabled(session.busy || session.items.allSatisfy(\.missing))
+                Button(session.profile.hasQueue ? "Copy Queue" : "Copy Everything", systemImage: "arrow.down.to.line") {
+                    if session.profile.hasQueue { session.copyQueue() } else { session.copyEverything() }
+                }
+                .labelStyle(.titleAndIcon)
+                .buttonStyle(.borderedProminent)
+                .disabled(session.busy || (session.profile.hasQueue && session.items.allSatisfy(\.missing)))
                 Menu("More", systemImage: "ellipsis.circle") {
-                    Button("Copy Everything") { session.copyEverything() }
+                    if session.profile.hasQueue { Button("Copy Everything") { session.copyEverything() } }
                     Button("Mirror…") { session.planMirror() }
                     Button("Check") { session.check() }
                     Divider()
@@ -74,6 +77,63 @@ struct DeviceView: View {
             if !v.profile.limits.isEmpty {
                 HStack(spacing: 6) {
                     ForEach(v.profile.limits, id: \.self) { Text($0).font(.callout).padding(.horizontal, 10).padding(.vertical, 4).background(.quaternary, in: Capsule()) }
+                }
+            }
+        }
+    }
+
+    // MARK: issues
+
+    private var issuesSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Issues").font(.title3.weight(.semibold))
+                Spacer()
+                if let i = session.issues {
+                    if i.total == 0 { Label("None · \(i.checked.formatted()) checked", systemImage: "checkmark.circle.fill").foregroundStyle(.green).labelStyle(.titleAndIcon) }
+                    else {
+                        Text(i.counts.sorted { $0.key < $1.key }.map { "\(Api.Issues.label($0.key)) \($0.value)" }.joined(separator: " · "))
+                            .foregroundStyle(.secondary).monospacedDigit()
+                    }
+                }
+            }
+            if session.activity == .fixing {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack { Text("Fixing").font(.headline); Spacer() }
+                    if let f = session.fraction { ProgressView(value: f) } else { ProgressView().progressViewStyle(.linear) }
+                }
+                .padding(16)
+                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 14))
+            }
+            if let n = session.fixed {
+                HStack(spacing: 8) {
+                    Label("\(n) fixed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                    if let run = session.fixRun, let panel = Config.panel {
+                        Button("Undo…") { NSWorkspace.shared.open(panel.url("/history", query: [URLQueryItem(name: "run", value: run)])) }
+                            .buttonStyle(.link)
+                    }
+                }
+            }
+            if let i = session.issues, i.total > 0 {
+                VStack(spacing: 0) {
+                    ForEach(Array(i.issues.enumerated()), id: \.element.id) { n, issue in
+                        if n > 0 { Divider().padding(.leading, 14) }
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text((issue.path as NSString).lastPathComponent).lineLimit(1).truncationMode(.middle)
+                                Text(issue.path.split(separator: "/").dropLast().joined(separator: " · ")).font(.callout).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                            Spacer()
+                            Text("\(issue.checkLabel) \(issue.value?.text ?? "") > \(issue.limit?.text ?? "")").font(.callout).foregroundStyle(.orange).monospacedDigit()
+                            Button("Play", systemImage: "play.fill") { Player.shared.play(path: issue.path) }.labelStyle(.iconOnly).buttonStyle(.borderless)
+                        }
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                    }
+                }
+                .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 14))
+                if i.total > i.issues.count { Text("+ \(i.total - i.issues.count)").foregroundStyle(.secondary) }
+                if i.fixable > 0 {
+                    Button("Fix \(i.fixable)") { session.fix() }.buttonStyle(.borderedProminent).disabled(session.busy)
                 }
             }
         }
@@ -125,6 +185,12 @@ struct DeviceView: View {
                 if !item.subtitle.isEmpty { Text(item.subtitle).font(.callout).foregroundStyle(.secondary).lineLimit(1) }
             }
             Spacer()
+            if !item.missing, item.albumID != nil || item.kind == "track" {
+                Button("Play", systemImage: "play.fill") {
+                    if item.kind == "track" { Player.shared.play(path: item.entry) } else if let id = item.albumID { Player.shared.play(albumID: id) }
+                }
+                .labelStyle(.iconOnly).buttonStyle(.borderless)
+            }
             if item.missing {
                 Button("Remove", systemImage: "xmark") { session.removeFromQueue(item) }.labelStyle(.iconOnly).buttonStyle(.borderless)
             } else {

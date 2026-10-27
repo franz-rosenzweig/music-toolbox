@@ -79,14 +79,8 @@ enum Config {
     static var remote: Remote? {
         let target = (env("MUSIC_SSH_TARGET") ?? defaults.string(forKey: "sshTarget") ?? "").trimmingCharacters(in: .whitespaces)
         guard !target.isEmpty else { return nil }
-        func path(_ key: String, _ fallback: String) -> String {
-            let v = (env("MUSIC_" + key.uppercased()) ?? defaults.string(forKey: key) ?? "").trimmingCharacters(in: .whitespaces)
-            return v.isEmpty ? fallback : v
-        }
-        return Remote(target: target,
-                      musicPath: path("musicPath", "/srv/media/music"),
-                      queuePath: path("queuePath", "/srv/docker/beets/config/dap-queue.txt"),
-                      syncLogPath: path("syncLogPath", "/srv/docker/beets/config/dap-sync-log.jsonl"))
+        let music = (env("MUSIC_MUSICPATH") ?? defaults.string(forKey: "musicPath") ?? "").trimmingCharacters(in: .whitespaces)
+        return Remote(target: target, musicPath: music.isEmpty ? "/srv/media/music" : music)
     }
 }
 
