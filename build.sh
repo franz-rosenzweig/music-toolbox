@@ -18,9 +18,12 @@ BUILD=${MUSIC_BUILD:-$(git rev-list --count HEAD 2>/dev/null || echo 1)}
 OUT=${MUSIC_OUT:-build}
 APP="$OUT/$NAME.app"
 
-swift build -c release 2>&1 | grep -E "error|warning: unre|Build complete" | tail -5
+# -file-prefix-map keeps this folder's path out of the binary (#file strings, debug info); the release
+# script checks that no home folder is in the app
+swift build -c release -Xswiftc -file-prefix-map -Xswiftc "$PWD=/src" 2>&1 | grep -E "error|warning: unre|Build complete" | tail -5
 rm -rf "$APP" && mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/release/MusicToolbox "$APP/Contents/MacOS/MusicToolbox"
+strip -S "$APP/Contents/MacOS/MusicToolbox"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
 # Folders and music dropped on the Dock icon open the Upload screen. ATS is relaxed because the
