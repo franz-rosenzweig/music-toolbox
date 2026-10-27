@@ -4,6 +4,7 @@ import AppKit
 /// An audio CD in the drive: what MusicBrainz says it is, ripped to FLAC, then sent to the server.
 struct RipView: View {
     @Bindable private var ripper = Ripper.shared
+    @AppStorage("ejectWhenDone") private var ejectWhenDone = true
 
     var body: some View {
         Group {
@@ -64,8 +65,8 @@ struct RipView: View {
 
     private var tracks: some View {
         VStack(spacing: 0) {
-            ForEach(Array(ripper.items.enumerated()), id: \.element.id) { i, it in
-                if i > 0 { Divider() }
+            ForEach(ripper.items) { it in
+                if it.id != ripper.items.first?.id { Divider() }
                 HStack(spacing: 12) {
                     Group {
                         switch it.state {
@@ -77,7 +78,12 @@ struct RipView: View {
                     }
                     .frame(width: 20)
                     Text("\(it.track.number)").foregroundStyle(.secondary).monospacedDigit().frame(width: 22, alignment: .trailing)
-                    TextField("Title", text: $ripper.items[i].title).textFieldStyle(.plain)
+                    // the title is found by track each time it is read or written: the list can empty under this
+                    // field (the disc is ejected), and an index into it would then be out of range
+                    TextField("Title", text: Binding(
+                        get: { ripper.items.first { $0.id == it.id }?.title ?? it.title },
+                        set: { v in if let j = ripper.items.firstIndex(where: { $0.id == it.id }) { ripper.items[j].title = v } }
+                    )).textFieldStyle(.plain)
                     Spacer()
                     if !it.artist.isEmpty, it.artist != ripper.albumArtist { Text(it.artist).font(.callout).foregroundStyle(.secondary).lineLimit(1) }
                     Text(Fmt.clock(Int(it.track.seconds))).font(.callout).foregroundStyle(.secondary).monospacedDigit().frame(width: 44, alignment: .trailing)
@@ -97,6 +103,7 @@ struct RipView: View {
                 HStack {
                     Button("Rip and Upload") { ripper.rip(andUpload: true) }.buttonStyle(.borderedProminent).disabled(ripper.activity != .idle)
                     Button("Rip") { ripper.rip(andUpload: false) }.disabled(ripper.activity != .idle)
+                    Toggle("Eject When Done", isOn: $ejectWhenDone).toggleStyle(.checkbox).padding(.leading, 8)
                     Spacer()
                     Button("Eject", systemImage: "eject") { Task { await ripper.eject() } }.disabled(ripper.activity == .ripping)
                 }

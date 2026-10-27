@@ -65,6 +65,18 @@ enum SelfTest {
         check(releases[0].tracks[0].title == "Sherpa" && releases[0].tracks[0].recordingID != nil && releases[0].tracks[0].trackID != nil && !releases[0].artistIDs.isEmpty, "with the track and artist IDs it needs for tags")
         check(Ripper.clean("AC/DC: Back in Black?") == "AC-DC- Back in Black", "folder names are made safe (\(Ripper.clean("AC/DC: Back in Black?")))")
 
+        // the disc going away while its tracks are on screen (the app once trapped on an index into the emptied list)
+        let r0 = Ripper.shared
+        r0.frozen = true
+        r0.disc = disc
+        r0.items = disc.tracks.map { Ripper.Item(track: $0, title: "Track \($0.number)", artist: "") }
+        Nav.shared.place = .rip
+        await pause(1.0)
+        r0.items = []
+        r0.disc = nil
+        await pause(1.0)
+        check(true, "ejecting the disc with its tracks on screen does not crash the app")
+        r0.frozen = false
         guard let real = Disc.find() else { return log("INFO no disc in the drive: the real disc is skipped") }
         let r = Ripper.shared
         await r.scan()
@@ -78,6 +90,7 @@ enum SelfTest {
         capture("rip")
         guard let dest = env["MUSIC_TEST_RIP_DEST"] else { return log("INFO MUSIC_TEST_RIP_DEST not set: the disc was looked up, not ripped") }
         UserDefaults.standard.set(dest, forKey: "ripsFolder")
+        UserDefaults.standard.set(false, forKey: "ejectWhenDone")      // a test must not eject the owner's disc
         let store = UploadStore.shared
         store.jobs.removeAll()
         r.rip(andUpload: true)

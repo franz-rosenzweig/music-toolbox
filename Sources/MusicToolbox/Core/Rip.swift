@@ -241,8 +241,11 @@ final class Ripper {
     }
 
     /// Looks for a disc, and asks MusicBrainz about a new one.
+    /// Set by the self-test to show a disc that is not in the drive.
+    var frozen = false
+
     func scan() async {
-        guard activity != .ripping else { return }
+        guard activity != .ripping, !frozen else { return }
         let d = await Task.detached { Disc.find() }.value
         guard d?.id != disc?.id || d == nil else { return }
         disc = d
@@ -373,6 +376,7 @@ final class Ripper {
             items[i].state = .done
             done += 1
         }
+        let eject = UserDefaults.standard.object(forKey: "ejectWhenDone") as? Bool ?? true
         if upload {
             let up = UploadStore.shared
             await up.add([dir])
@@ -381,6 +385,12 @@ final class Ripper {
             Nav.shared.place = .upload
         } else {
             activity = .idle
+        }
+        // nothing reads the disc any more: let it out, so the drive's own button is not needed
+        if eject {
+            let saved = dir
+            await self.eject()
+            Nav.shared.notify("Ripped to \((saved.path as NSString).abbreviatingWithTildeInPath) · disc ejected")
         }
     }
 
