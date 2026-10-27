@@ -24,6 +24,7 @@ enum SelfTest {
         window?.setContentSize(NSSize(width: 1000, height: 680))
         window?.center()
         Player.shared.player.volume = 0
+        Nav.shared.place = .upload      // the Needs you page would poll the stand-in while the tests count its answers
         if let samples = env["MUSIC_TEST_SAMPLES"] {
             self.samples(samples)
             return finish()
@@ -31,6 +32,8 @@ enum SelfTest {
         if env["MUSIC_TEST_REAL"] == nil {
             if let dir = env["MUSIC_TEST_UPLOAD"] { await uploads(dir) }
             await library()
+            await needs()
+            if env["MUSIC_TEST_REPLAY"] != nil { await more() }
             if let vol = env["MUSIC_TEST_VOLUME"] { await devices(vol) }
             await pictures()
         } else if let vol = env["MUSIC_TEST_VOLUME"] {
@@ -106,6 +109,71 @@ enum SelfTest {
         if let j = job("GET /api/jobs/{id} (an upload import, running") { check(j.running, "job: an import, running") }
         if let j = job("GET /api/jobs/{id} (an upload import that failed") { check(!j.done && !j.running && j.error != nil && j.result.isEmpty, "job: a failed import has an error and no result") }
         if let j = job("GET /api/jobs/{id} (interrupted") { check(!j.done && !j.running, "job: interrupted ends the wait (\(j.status))") }
+        if let n = decode("GET /api/needs", [Api.Need].self) {
+            check(!n.isEmpty && n.contains { $0.importIDs != nil } && n.allSatisfy { !$0.title.isEmpty }, "needs: \(n.count) items, \(n.filter { $0.kind == "import" }.count) imports")
+        }
+        if let a = decode("GET /api/needs/imports/{fid}/{gid}\u{1}".replacingOccurrences(of: "\u{1}", with: ""), Api.InboxAlbum.self) { check(a.nTracks > 0 && !a.tracks.isEmpty && a.target != nil, "inbox album: \(a.album ?? "-"), \(a.tracks.count) tracks") }
+        if let c = decode("GET /api/needs/imports/{fid}/{gid}/candidates (while it runs", Api.Candidates.self) { check(c.running && c.candidates == nil, "candidates while it runs") }
+        if let c = decode("GET /api/needs/imports/{fid}/{gid}/candidates\u{1}".replacingOccurrences(of: "\u{1}", with: ""), Api.Candidates.self) {
+            check(c.status == "done" && c.candidates?.first?.tracks?.isEmpty == false && c.candidates?.first?.penalties != nil, "candidates: \(c.candidates?.count ?? 0), best \(c.candidates?.first?.heading ?? "-") \(Int((c.candidates?.first?.score ?? 0) * 100))%")
+        }
+        if let c = decode("POST /api/needs/imports/{fid}/{gid}/search", Api.Candidates.self) { check(c.running, "a search starts a lookup") }
+        if let r = decode("POST /api/needs/imports/{fid}/{gid}/apply\u{1}".replacingOccurrences(of: "\u{1}", with: ""), Api.JobRef.self) { check(r.job > 0, "apply: job \(r.job)") }
+        if let r = decode("POST /api/needs/imports/{fid}/{gid}/asis\u{1}".replacingOccurrences(of: "\u{1}", with: ""), Api.AsIs.self) { check(r.job > 0 && r.folder != nil && r.queuedForDap == true, "as-is: \(r.folder ?? "-")") }
+        for prefix in ["POST /api/needs/imports/{fid}/{gid}/asis (English names missing", "POST /api/needs/imports/{fid}/{gid}/apply (English names missing"] {
+            if let (c, d) = entry(prefix), case .refused(let m) = Panel.failure(c, d) { check(m.contains("English"), "a 400 names what is missing: “\(m.prefix(40))…”") } else { check(false, prefix) }
+        }
+        if let n = decode("GET /api/names", [Api.NameNeed].self) { check(!n.isEmpty && n.allSatisfy { !$0.name.isEmpty }, "names: \(n.count), first \(n[0].name) → \(n[0].suggest ?? "")") }
+        if let (c, d) = entry("POST /api/needs/{id}/later"), c == 200, Panel.object(d)["later"] as? Bool != nil { check(true, "later answers its state") } else { check(false, "later") }
+        for k in ["GET /api/jobs/{id} (an import from MusicBrainz, finished", "GET /api/jobs/{id} (an as-is import, finished"] {
+            if let j = job(k) { check(j.done && j.run != nil && (j.result["albums"] as? [[String: Any]])?.first?["status"] as? String == "imported", "job: \(j.kind) imported, run \(j.run ?? "-")") }
+        }
+        if let (c, d) = entry("GET /api/jobs?recent"), c == 200, let a = (try? JSONSerialization.jsonObject(with: d)) as? [[String: Any]] { check(!a.isEmpty && a.map(Api.Job.init).allSatisfy { !$0.kind.isEmpty }, "recent jobs: \(a.count)") } else { check(false, "recent jobs") }
+        // history
+        if let h = decode("GET /api/history?limit=3", Api.History.self) { check(!h.runs.isEmpty && h.total >= h.runs.count && h.runs.allSatisfy { !$0.title.isEmpty && !$0.when.isEmpty }, "history: \(h.runs.count) runs of \(h.total), next \(h.next ?? "-")") }
+        if let h = decode("GET /api/history?kind=audio", Api.History.self) { check(h.runs.allSatisfy { $0.kind == "audio" || ($0.kinds ?? []).contains("audio") }, "history, only audio: \(h.runs.count)") }
+        if let h = decode("GET /api/history (the sandbox after three imports", Api.History.self) { check(!h.runs.isEmpty, "history of imports: \(h.runs.map(\.title).prefix(2))") }
+        if let d = decode("GET /api/history/{run} (a tag run", Api.RunDetail.self) { check(!d.changes.isEmpty && d.changes[0].rows.first?.field != nil, "a run's changes: \(d.changes.count) files, \(d.changes[0].rows.first?.field ?? "-")") }
+        if let d = decode("GET /api/history/{run}\u{2}".replacingOccurrences(of: "\u{2}", with: ""), Api.RunDetail.self) { check(!d.changes.isEmpty, "an audio run's changes: \(d.changes.count)") }
+        for k in ["GET /api/history/{run}/undo-preview\u{2}", "GET /api/history/{run}/undo-preview (a tag run", "GET /api/history/{run}/undo-preview (already undone", "GET /api/history/{run}/undo-preview (an as-is import", "GET /api/history/{run}/undo-preview (pasted lyrics"] {
+            if let u = decode(k.replacingOccurrences(of: "\u{2}", with: ""), Api.UndoPreview.self) { check(!u.labels.isEmpty, "undo preview “\(k.dropFirst(33).prefix(22))”: \(u.canUndo ? u.labels.joined(separator: ", ") : (u.reason ?? "cannot"))") }
+        }
+        if let r = decode("POST /api/history/{run}/undo", Api.JobRef.self) { check(r.job > 0, "undo: job \(r.job)") }
+        // library filters and lyrics
+        if let r = decode("GET /api/search?filter=lyrics_none&sort=lyrics", Api.Search.self) { check(!r.albums.isEmpty && r.albums[0].lyrics != nil && r.counts != nil && r.coverage != nil, "search with filter: \(r.albums.count) albums, counts \(r.counts ?? [:]), coverage \(r.coverage?.tracks ?? -1) tracks") }
+        if let r = decode("GET /api/search?filter=queued", Api.Search.self) { check(r.albums.first?.queued == true, "queued filter") }
+        if let r = decode("GET /api/search?q=mud", Api.Search.self) { check(r.tracks?.first?.lyrics != nil, "a track says its lyrics: \(r.tracks?.first?.lyrics ?? "-")") }
+        if let a = decode("GET /api/albums/{id}", Api.AlbumDetail.self) { check(a.tracks.allSatisfy { $0.lyrics != nil }, "album tracks carry lyrics status \(Set(a.tracks.compactMap(\.lyrics)))") }
+        if let l = decode("GET /api/tracks/{id}/lyrics (synced)", Api.TrackLyrics.self) { check(l.kind == "synced" && !(l.text ?? "").isEmpty, "lyrics, synced: source \(l.source ?? "-")") }
+        if let l = decode("GET /api/tracks/{id}/lyrics (none)", Api.TrackLyrics.self) { check(l.kind == nil && (l.text ?? "").isEmpty, "lyrics, none") }
+        for k in ["POST /api/tracks/{id}/lyrics\u{2}", "DELETE /api/tracks/{id}/lyrics", "POST /api/tracks/{id}/instrumental"] {
+            if let r = decode(k.replacingOccurrences(of: "\u{2}", with: ""), Api.JobRef.self) { check(r.job > 0, "\(k.prefix(36)): job \(r.job)") }
+        }
+        for k in ["GET /api/jobs/{id} (lyrics pasted, finished", "GET /api/jobs/{id} (lyrics removed, finished", "GET /api/jobs/{id} (marked instrumental, finished"] {
+            if let j = job(k) { check(j.done && (j.run != nil || k.contains("instrumental")), "job: \(k.dropFirst(18).prefix(30)), run \(j.run ?? "none")") }
+        }
+        // covers
+        if let c = decode("GET /api/covers\u{2}".replacingOccurrences(of: "\u{2}", with: ""), [Api.Album].self) { check(true, "covers without art: \(c.count)") }
+        if let c = decode("GET /api/covers/{album_id}/candidates", Api.CoverCandidates.self) { check(!c.candidates.isEmpty && c.candidates.allSatisfy { !$0.url.isEmpty }, "cover candidates: \(c.candidates.count) from \(Set(c.candidates.map(\.source)))") }
+        for k in ["POST /api/covers/{album_id} (a link", "POST /api/covers/{album_id} (the image as the body"] { if let r = decode(k, Api.JobRef.self) { check(r.job > 0, "set a cover: job \(r.job)") } }
+        // library health
+        for kind in ["split", "variants", "multi", "unknown"] {
+            if let h = decode("GET /api/health/\(kind)\u{2}".replacingOccurrences(of: "\u{2}", with: ""), Api.HealthPage.self) { check(h.kind == kind && h.rows.allSatisfy { !$0.id.isEmpty }, "health \(kind): \(h.total) rows") }
+            if let h = decode("GET /api/health/\(kind) (the live", Api.HealthPage.self) { check(h.total == 0 && h.rows.isEmpty, "health \(kind), live: nothing to fix") }
+        }
+        if let h = decode("GET /api/health/split\u{2}".replacingOccurrences(of: "\u{2}", with: ""), Api.HealthPage.self), let r = h.rows.first { check(r.entries?.isEmpty == false && r.spread?.isEmpty == false, "a split row: \(r.album ?? "-"), \(r.entries?.count ?? 0) entries, spread \(r.spread?.map(\.field) ?? [])") }
+        if let h = decode("GET /api/health/unknown\u{2}".replacingOccurrences(of: "\u{2}", with: ""), Api.HealthPage.self), let r = h.rows.first { check(r.files?.isEmpty == false, "an unknown row: \(r.files?.count ?? 0) files") }
+        for k in ["POST /api/health/split\u{2}", "POST /api/health/variants", "POST /api/health/multi", "POST /api/health/unknown"] {
+            if let r = decode(k.replacingOccurrences(of: "\u{2}", with: ""), Api.FixJob.self) { check(r.job > 0, "\(k.dropFirst(5)): job \(r.job), run \(r.run ?? "-")") }
+        }
+        if let (c, d) = entry("POST /api/health/ignore"), c == 200, Panel.object(d)["ignored"] as? Bool == true { check(true, "ignore answers") } else { check(false, "ignore") }
+        if let f = decode("GET /api/health/findings\u{2}".replacingOccurrences(of: "\u{2}", with: ""), Api.Findings.self) { check(true, "findings: \(f.findings.count)") }
+        // the device's added albums and copy history
+        if let n = decode("GET /api/devices/{id}/queue/new\u{2}".replacingOccurrences(of: "\u{2}", with: ""), Api.NewAlbums.self) { check(true, "queue/new: \(n.albums.count) albums since \(n.since ?? "-")") }
+        if let n = decode("GET /api/devices/{id}/queue/new (the live", Api.NewAlbums.self) { check(n.albums.isEmpty, "queue/new on the live library: none") }
+        if let a = decode("POST /api/devices/{id}/queue/new", Api.Added.self) { check(true, "queued \(a.added.count) new albums") }
+        if let y = decode("GET /api/devices/{id}/syncs\u{2}".replacingOccurrences(of: "\u{2}", with: ""), Api.Syncs.self) { check(!y.syncs.isEmpty, "syncs: \(y.syncs.count), last finished \(y.lastFinished?.ts ?? "-")") }
+        if let y = decode("GET /api/devices/{id}/syncs?limit=3 (the live", Api.Syncs.self) { check(y.syncs.count <= 3 && y.syncs.allSatisfy { !$0.time.isEmpty }, "live syncs: \(y.syncs.map { "\($0.result ?? "") \($0.time)" })") }
         if let (c, d) = entry("GET /api/jobs/{id} (unknown id"), case .refused = Panel.failure(c, d) { check(true, "an unknown job is refused") } else { check(false, "an unknown job is refused") }
     }
 
@@ -149,6 +217,168 @@ enum SelfTest {
             check(j2.state == .done, "resumed upload finished (\(j2.state), \(j2.note))")
             check(j2.needLook == 1, "reads “1 need a look” from the job (got \(j2.needLook ?? -1))")
         }
+    }
+
+    // MARK: needs you
+
+    static func needs() async {
+        guard let panel = Config.panel else { return }
+        let store = NeedsStore.shared
+        await store.load()
+        let openBefore = store.open
+        check(store.items.count >= 5 && openBefore >= 4, "Needs you lists \(store.items.count) items, \(openBefore) open")
+        let imports = store.items.filter { $0.kind == "import" }
+        guard imports.count == 2, let ids = imports[0].importIDs, let hebIDs = imports[1].importIDs else { return check(false, "two imports are listed") }
+        let cover = imports[0].cover
+        check(cover != nil, "an import has art")
+        if let cover { check(await Covers.image(path: cover) != nil, "its art loads through the login") }
+        do {
+            let a = try await panel.inbox(ids.fid, ids.gid)
+            check(a.nTracks == 2 && a.tracks.count == 2 && a.target == "Yoavi/Mud memory/" && a.needsAsis.isEmpty, "the inbox album: \(a.album ?? "-"), \(a.nTracks) tracks, goes to \(a.target ?? "-")")
+            // a lookup is asked for until it is done
+            var c = try await panel.candidates(ids.fid, ids.gid)
+            check(c.running && c.candidates == nil, "the lookup starts (\(c.status))")
+            var asks = 1
+            while c.running && asks < 10 { try await Task.sleep(for: .milliseconds(150)); c = try await panel.candidates(ids.fid, ids.gid); asks += 1 }
+            check(c.status == "done" && c.candidates?.first?.quality == "good" && c.candidates?.first?.tracks?.count == 2, "candidates arrive after \(asks) asks")
+            _ = try await panel.searchCandidates(ids.fid, ids.gid, "Yoavi - Mud memory")
+            c = try await panel.candidates(ids.fid, ids.gid)
+            asks = 1
+            while c.running && asks < 10 { try await Task.sleep(for: .milliseconds(150)); c = try await panel.candidates(ids.fid, ids.gid); asks += 1 }
+            check(c.candidates?.count == 2, "a search gives its own candidates (\(c.candidates?.map(\.heading) ?? []))")
+
+            // accept a match
+            let follower = JobFollower()
+            let jid = try await panel.apply(ids.fid, ids.gid, candidate: c.candidates![0].id, english: [:])
+            follower.follow(jid)
+            check(await until(20, { follower.job?.done == true }), "the import job ends")
+            check(follower.lines.first == "Imported Yoavi — Mud memory · 2 tracks", "it says what it imported (\(follower.lines))")
+            check(follower.job?.run == "import-mb-test", "and has an undo run")
+
+            // names in Hebrew need English ones first
+            do { _ = try await panel.apply(hebIDs.fid, hebIDs.gid, candidate: "rel-cccc3333", english: [:]); check(false, "English names are required") }
+            catch let e as PanelError { check({ if case .refused(let m) = e { m.contains("English") } else { false } }(), "an import without its English names is refused") }
+            let j2 = try await panel.apply(hebIDs.fid, hebIDs.gid, candidate: "rel-cccc3333", english: ["artist": "Nir Knaan", "album": "Nekudat Torpa"])
+            check(j2 > 0, "with them it goes ahead (job \(j2))")
+            let asis = try await panel.asis(hebIDs.fid, hebIDs.gid, english: ["artist": "Nir Knaan", "album": "Nekudat Torpa"])
+            check(asis.folder == "Nir Knaan/Nekudat Torpa/" && asis.queuedForDap == true, "as-is: goes to \(asis.folder ?? "-"), queued for the DAP")
+            do { _ = try await panel.asis(hebIDs.fid, hebIDs.gid, english: [:]); check(false, "as-is needs English names") } catch { check(true, "as-is without them is refused") }
+
+            // names
+            let names = try await panel.names()
+            check(names.count == 2 && names[0].suggest == "Nir Knaan" && names[1].suggest == "", "names to give: \(names.map(\.name))")
+            let rj = try await panel.rename([["kind": "artist", "name": names[0].name, "english": "Nir Knaan"]])
+            let renamed = JobFollower()
+            renamed.follow(rj)
+            check(await until(20, { renamed.job?.done == true }), "a rename job ends")
+
+            // later, and back
+            await store.later(imports[0])
+            check(store.items.first { $0.id == imports[0].id }?.later == true && store.open == openBefore - 1, "Later puts an item off")
+            if let n = store.items.first(where: { $0.id == imports[0].id }) { await store.later(n) }
+            check(store.open == openBefore, "and brings it back")
+            let recent = try await panel.recentJobs(10)
+            check(recent.count >= 3 && recent.contains { $0.kind == "import-mb" }, "recent jobs: \(recent.count)")
+        } catch { check(false, "the Needs you flow: \(error)") }
+
+        Nav.shared.place = .needs
+        Nav.shared.needsSelection = imports[0].id
+        await pause(4.5)
+        capture("needs-import")
+        Nav.shared.needsSelection = imports[1].id
+        await pause(4.5)
+        capture("needs-import-hebrew")
+        Nav.shared.needsSelection = "names"
+        await pause(1.0)
+        capture("needs-names")
+    }
+
+    // MARK: history, lyrics, covers, health, activity (the panel's recorded answers replayed)
+
+    static func more() async {
+        guard let panel = Config.panel else { return }
+        // history
+        let h = HistoryStore()
+        await h.reload()
+        check(!h.runs.isEmpty && h.total >= h.runs.count, "History lists \(h.runs.count) runs of \(h.total)")
+        h.kind = "audio"
+        await h.reload()
+        check(h.runs.allSatisfy { $0.kind == "audio" || $0.kinds?.contains("audio") == true }, "History filters by kind (\(h.runs.count) audio)")
+        h.kind = nil
+        await h.reload()
+        guard let run = h.runs.first(where: { $0.canUndo && !$0.undone }) ?? h.runs.first else { return check(false, "a run to look at") }
+        if let d = try? await panel.run(run.run) { check(!d.changes.isEmpty, "a run lists its changes by file (\(d.changes.count))") } else { check(false, "a run's changes") }
+        if let p = try? await panel.undoPreview(run.run) { check(!p.labels.isEmpty, "undo preview: \(p.labels.joined(separator: ", "))") } else { check(false, "undo preview") }
+        let undo = JobFollower()
+        undo.follow(try! await panel.undo(run.run, force: false))
+        check(await until(20, { undo.job?.done == true }) && undo.lines.first?.hasPrefix("reverted") == true, "undo runs as a job (\(undo.lines.first ?? "-"))")
+        let batches = try? await panel.recentJobs(10)
+        check((batches?.count ?? 0) >= 1, "Activity lists recent jobs")
+
+        // the library: filters, lyrics
+        let r = try? await panel.search("", sort: "lyrics", filter: "queued")
+        check(r?.coverage != nil && r?.counts?["queued"] != nil, "Library filter and coverage (\(r?.counts ?? [:]))")
+        guard let album = (try? await panel.search("album one"))?.albums.first, let detail = try? await panel.album(album.id), detail.tracks.count == 2 else { return check(false, "an album with lyrics status") }
+        check(Set(detail.tracks.compactMap(\.lyrics)).count == 2, "tracks carry their lyrics status \(detail.tracks.compactMap(\.lyrics))")
+        let ly = try? await panel.lyrics(detail.tracks[0].id)
+        check(ly?.kind == "synced" && !(ly?.text ?? "").isEmpty, "reads synced lyrics (source \(ly?.source ?? "-"))")
+        for (what, call): (String, () async throws -> Int) in [
+            ("paste lyrics", { try await panel.pasteLyrics(detail.tracks[0].id, "[00:01.00]one\n[00:02.00]two\n[00:03.00]three") }),
+            ("remove lyrics", { try await panel.removeLyrics(detail.tracks[0].id) }),
+            ("mark a track instrumental", { try await panel.instrumental(track: detail.tracks[1].id, true) }),
+            ("mark an album's gaps instrumental", { try await panel.instrumental(album: album.id, true, tracks: [detail.tracks[1].id]) }),
+            ("look up an album's lyrics", { try await panel.lookupLyrics(album: album.id) })] {
+            let f = JobFollower()
+            do { f.follow(try await call()); check(await until(20, { f.job?.done == true }), "\(what): job ends (\(f.lines.first ?? "done"))") } catch { check(false, "\(what): \(error)") }
+        }
+
+        // covers
+        if let missing = try? await panel.covers(), let a = missing.first {
+            check(true, "covers without art: \(missing.count)")
+            if let c = try? await panel.coverCandidates(a.id) {
+                check(!c.candidates.isEmpty, "cover candidates: \(c.candidates.count)")
+                let f = JobFollower()
+                f.follow(try! await panel.setCover(a.id, url: c.candidates[0].url))
+                check(await until(20, { f.job?.done == true }) && f.lines.first?.hasPrefix("Cover saved") == true, "setting a cover from a link: \(f.lines.first ?? "-")")
+                let g = JobFollower()
+                g.follow(try! await panel.setCover(a.id, image: Data(count: 2000), type: "image/jpeg"))
+                check(await until(20, { g.job?.done == true }), "setting a cover from a file")
+            }
+        } else { check(false, "covers without art") }
+
+        // library health
+        for kind in ["split", "variants", "multi", "unknown"] {
+            guard let page = try? await panel.health(kind), let row = page.rows.first else { check(false, "health \(kind) has rows"); continue }
+            var body: [String: Any] = ["id": row.id]
+            switch kind {
+            case "split": body["pick"] = 0
+            case "variants": body["chosen"] = row.names?.first?.name ?? ""
+            case "multi": body["album"] = row.albums?.first?.name ?? ""
+            default: body["files"] = []
+            }
+            let f = JobFollower()
+            do { f.follow(try await panel.fixHealth(kind, body).job); check(await until(20, { f.job?.done == true }) && f.lines.first?.contains("field changes") == true, "health \(kind): \(page.total) rows, fix runs (\(f.lines.first ?? "-"))") } catch { check(false, "health \(kind) fix: \(error)") }
+        }
+        if let page = try? await panel.health("split"), let row = page.rows.first { do { try await panel.ignoreHealth(row.id); check(true, "leave it") } catch { check(false, "ignore: \(error)") } }
+        check(((try? await panel.findings())?.findings.count ?? -1) >= 0, "weekly findings")
+
+        // pictures of the new screens
+        Nav.shared.place = .history
+        await pause(2.0)
+        capture("history")
+        Nav.shared.place = .activity
+        await pause(2.0)
+        capture("activity")
+        Nav.shared.place = .library
+        await pause(1.5)
+        capture("library-filters")
+        Nav.shared.place = .needs
+        Nav.shared.needsSelection = "fix-split"
+        await pause(2.0)
+        capture("needs-health")
+        Nav.shared.needsSelection = "covers"
+        await pause(1.5)
+        capture("needs-covers")
     }
 
     // MARK: library and play
@@ -202,6 +432,12 @@ enum SelfTest {
         check(s.items.filter(\.missing).count == 1, "one entry is gone from the library")
         check(s.items.filter { !$0.missing }.allSatisfy { $0.size > 0 }, "sizes come with the queue (\(Fmt.size(s.queueBytes)))")
         check(s.items.first?.title == "Album One" && s.items.first?.subtitle == "Artist A", "an album shows its name and artist")
+        if env["MUSIC_TEST_REPLAY"] != nil {
+            check((s.newAlbums?.albums.count ?? 0) > 0, "the device page lists \(s.newAlbums?.albums.count ?? 0) albums added since the last copy")
+            check((s.syncs?.syncs.count ?? 0) > 0 && s.syncs?.lastFinished != nil, "and the panel's copy history (\(s.syncs?.syncs.count ?? 0) copies)")
+            s.queueNewAlbums()
+            await pause(1.0)
+        }
 
         // what the device cannot play, and the panel's fix
         check(s.issues?.total == 2 && s.issues?.fixable == 2, "finds \(s.issues?.total ?? -1) issues, \(s.issues?.fixable ?? -1) fixable")

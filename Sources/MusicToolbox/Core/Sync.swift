@@ -92,6 +92,8 @@ final class DeviceSession {
     private(set) var volume: Volume
     var items: [Item] = []
     var issues: Api.Issues?
+    var newAlbums: Api.NewAlbums?
+    var syncs: Api.Syncs?
     var fixed: Int?
     var fixRun: String?
     var libraryBytes: Int64?
@@ -137,6 +139,10 @@ final class DeviceSession {
             self.error = Self.describe(error)
         }
         issues = try? await panel.issues(profile.id)
+        if profile.hasQueue {
+            newAlbums = try? await panel.queueNew(profile.id)
+            syncs = try? await panel.syncs(profile.id)
+        }
         if let remote = Config.remote, let used = try? await remote.librarySize() { libraryBytes = used }
         await measure()
     }
@@ -351,6 +357,17 @@ final class DeviceSession {
                               "seconds": secs, "mac": ProcessInfo.processInfo.hostName.split(separator: ".").first.map(String.init) ?? "",
                               "rsync": "3", "app": "music-toolbox", "detail": String(detail.prefix(300))])
         if m == .queue || result == "finished" { items.removeAll { copied.contains($0.entry) } }
+        if profile.hasQueue { syncs = try? await panel?.syncs(profile.id) }
+    }
+
+    /// Queues every album added since the last copy.
+    func queueNewAlbums() {
+        guard let panel = Config.panel, profile.hasQueue else { return }
+        Task {
+            _ = try? await panel.queueAllNew(profile.id)
+            if let q = try? await panel.queue(profile.id) { items = q.map(Item.init) }
+            newAlbums = try? await panel.queueNew(profile.id)
+        }
     }
 
     // MARK: looking before copying

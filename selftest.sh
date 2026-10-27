@@ -61,7 +61,8 @@ printf '# dap-sync target marker\nmarked=2026-10-26 12:00:00\nmusicdir=\nprofile
 mkdir -p "$VOL/.rockbox" "$VOL/Playlists"; echo "rockbox settings" > "$VOL/.rockbox/config.cfg"; echo "#EXTM3U" > "$VOL/Playlists/x.m3u"; echo "device settings" > "$VOL/settings.txt"
 
 PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1])')
-python3 tests/standin-panel.py $PORT "$WORK/panel" --lib "$LIB" --queue "$Q" --log "$LOG" --drop-after 3000000 --slow 0.4 --needs-look 1 --issues 2 --corrupt-once 2>"$OUT/standin.err" &
+REPLAY=(); [[ -n ${PANEL_SAMPLES:-} ]] && { REPLAY=(--samples "${PANEL_SAMPLES:A}"); export MUSIC_TEST_REPLAY=1; }
+python3 tests/standin-panel.py $PORT "$WORK/panel" --lib "$LIB" --queue "$Q" --log "$LOG" --drop-after 3000000 --slow 0.4 --needs-look 1 --issues 2 --corrupt-once "${REPLAY[@]}" 2>"$OUT/standin.err" &
 SERVER_PID=$!
 sleep 1
 

@@ -131,7 +131,9 @@ struct JobRow: View {
             case .done:
                 HStack(spacing: 6) {
                     Text("\(job.imported ?? 0) imported")
-                    if let n = job.needLook, n > 0 { Text("· \(n) need a look").foregroundStyle(.orange) }
+                    if let n = job.needLook, n > 0 {
+                        Button("\(n) need a look") { Nav.shared.place = .needs }.buttonStyle(.link).foregroundStyle(.orange)
+                    }
                     Text("· \(Fmt.size(job.total))")
                 }
                 .font(.callout).foregroundStyle(.secondary)

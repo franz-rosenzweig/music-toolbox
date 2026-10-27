@@ -58,7 +58,7 @@ final class Panel: @unchecked Sendable {
         return comps.url!
     }
 
-    private func request(_ method: String, _ path: String, query: [URLQueryItem] = [], json: Any? = nil) throws -> URLRequest {
+    func request(_ method: String, _ path: String, query: [URLQueryItem] = [], json: Any? = nil) throws -> URLRequest {
         var r = URLRequest(url: url(path, query: query))
         r.httpMethod = method
         r.setValue(authorization, forHTTPHeaderField: "Authorization")
@@ -70,7 +70,7 @@ final class Panel: @unchecked Sendable {
         return r
     }
 
-    private func send(_ r: URLRequest, body: Data? = nil, delegate: URLSessionTaskDelegate? = nil) async throws -> (Data, Int) {
+    func send(_ r: URLRequest, body: Data? = nil, delegate: URLSessionTaskDelegate? = nil) async throws -> (Data, Int) {
         do {
             let (data, resp) = body == nil ? try await session.data(for: r, delegate: delegate) : try await session.upload(for: r, from: body!, delegate: delegate)
             return (data, (resp as? HTTPURLResponse)?.statusCode ?? 0)
@@ -94,7 +94,7 @@ final class Panel: @unchecked Sendable {
     }
 
     /// One call, answered with JSON of type T.
-    private func call<T: Decodable>(_ method: String, _ path: String, query: [URLQueryItem] = [], json: Any? = nil, as: T.Type = T.self) async throws -> T {
+    func call<T: Decodable>(_ method: String, _ path: String, query: [URLQueryItem] = [], json: Any? = nil, as: T.Type = T.self) async throws -> T {
         let (data, code) = try await send(request(method, path, query: query, json: json))
         guard (200..<300).contains(code) else { throw Panel.failure(code, data) }
         do { return try Panel.decoder.decode(T.self, from: data) } catch { throw PanelError.refused("Unexpected answer") }
@@ -144,8 +144,11 @@ final class Panel: @unchecked Sendable {
 
     // MARK: library
 
-    func search(_ q: String, limit: Int = 60, offset: Int = 0) async throws -> Api.Search {
-        try await call("GET", "/api/search", query: [URLQueryItem(name: "q", value: q), URLQueryItem(name: "limit", value: String(limit)), URLQueryItem(name: "offset", value: String(offset))])
+    func search(_ q: String, limit: Int = 60, offset: Int = 0, sort: String? = nil, filter: String? = nil) async throws -> Api.Search {
+        var items = [URLQueryItem(name: "q", value: q), URLQueryItem(name: "limit", value: String(limit)), URLQueryItem(name: "offset", value: String(offset))]
+        if let sort { items.append(URLQueryItem(name: "sort", value: sort)) }
+        if let filter, filter != "all" { items.append(URLQueryItem(name: "filter", value: filter)) }
+        return try await call("GET", "/api/search", query: items)
     }
 
     func album(_ id: String) async throws -> Api.AlbumDetail { try await call("GET", "/api/albums/\(id)") }
@@ -157,6 +160,59 @@ final class Panel: @unchecked Sendable {
     func cover(_ albumID: String, size: Int = 128) async -> Data? {
         guard let (data, code) = try? await send({ var r = try request("GET", "/cover/\(albumID)", query: [URLQueryItem(name: "size", value: String(size))]); r.setValue("image/*", forHTTPHeaderField: "Accept"); return r }()),
               code == 200 else { return nil }
+        return data
+    }
+
+    // MARK: needs you
+
+    func needs() async throws -> [Api.Need] { try await call("GET", "/api/needs") }
+
+    func later(_ id: String, _ on: Bool) async throws {
+        let _: Api.Ignored = try await call("POST", "/api/needs/\(id)/later", json: ["on": on])
+    }
+
+    func inbox(_ fid: String, _ gid: String) async throws -> Api.InboxAlbum { try await call("GET", "/api/needs/imports/\(fid)/\(gid)") }
+
+    func candidates(_ fid: String, _ gid: String) async throws -> Api.Candidates { try await call("GET", "/api/needs/imports/\(fid)/\(gid)/candidates") }
+
+    func searchCandidates(_ fid: String, _ gid: String, _ query: String) async throws -> Api.Candidates {
+        try await call("POST", "/api/needs/imports/\(fid)/\(gid)/search", json: ["query": query])
+    }
+
+    func apply(_ fid: String, _ gid: String, candidate: String, english: [String: String], keepCover: Bool = true) async throws -> Int {
+        var body: [String: Any] = ["candidate": candidate, "keep_cover": keepCover]
+        if !english.isEmpty { body["english"] = english }
+        let r: Api.JobRef = try await call("POST", "/api/needs/imports/\(fid)/\(gid)/apply", json: body)
+        return r.job
+    }
+
+    func asis(_ fid: String, _ gid: String, english: [String: String]) async throws -> Api.AsIs {
+        try await call("POST", "/api/needs/imports/\(fid)/\(gid)/asis", json: english.isEmpty ? [:] : ["english": english])
+    }
+
+    func names() async throws -> [Api.NameNeed] { try await call("GET", "/api/names") }
+
+    func rename(_ renames: [[String: String]]) async throws -> Int {
+        let r: Api.JobRef = try await call("POST", "/api/names", json: ["renames": renames])
+        return r.job
+    }
+
+    func recentJobs(_ n: Int = 40) async throws -> [Api.Job] {
+        let (data, code) = try await send(request("GET", "/api/jobs", query: [URLQueryItem(name: "recent", value: String(n))]))
+        guard code == 200 else { throw Panel.failure(code, data) }
+        return ((try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] ?? []).map(Api.Job.init)
+    }
+
+    /// Anything the panel serves behind its login (an inbox album's art, a cover).
+    func data(path: String, accept: String = "image/*") async -> Data? {
+        guard var comps = URLComponents(url: base, resolvingAgainstBaseURL: false), let u = URLComponents(string: path) else { return nil }
+        comps.path = (comps.path.hasSuffix("/") ? String(comps.path.dropLast()) : comps.path) + u.path
+        comps.query = u.query
+        guard let url = comps.url else { return nil }
+        var r = URLRequest(url: url)
+        r.setValue(authorization, forHTTPHeaderField: "Authorization")
+        r.setValue(accept, forHTTPHeaderField: "Accept")
+        guard let (data, code) = try? await send(r), code == 200 else { return nil }
         return data
     }
 
@@ -258,6 +314,25 @@ enum Api {
         var bytes: Int64
         var hasCover: Bool
         var folder: String?
+        var queued: Bool?
+        var attention: Bool?
+        var lyrics: LyricCounts?
+    }
+
+    struct LyricCounts: Decodable, Hashable, Sendable {
+        var synced: Int
+        var plain: Int
+        var instrumental: Int
+        var none: Int
+        var total: Int { synced + plain + instrumental + none }
+    }
+
+    struct Coverage: Decodable, Sendable {
+        var tracks: Int
+        var synced: Int
+        var plain: Int
+        var instrumental: Int
+        var none: Int
     }
 
     struct Track: Decodable, Identifiable, Hashable, Sendable {
@@ -274,6 +349,9 @@ enum Api {
         var sampleRate: Int?
         var bitDepth: Int?
         var bytes: Int64?
+        var lyrics: String?
+        var instrumentalMarked: Bool?
+        var instrumentalLrclib: Bool?
 
         /// "FLAC · 44.1 kHz · 16-bit": what a file is, to tell it apart.
         var kind: String {
@@ -289,6 +367,8 @@ enum Api {
         var albums: [Album]
         var total: Int
         var tracks: [Track]?
+        var counts: [String: Int]?
+        var coverage: Coverage?
     }
 
     struct AlbumDetail: Decodable, Sendable {
@@ -350,6 +430,9 @@ enum Api {
 
     struct Job: @unchecked Sendable {
         var id: Int
+        var kind: String
+        var title: String
+        var log: String
         var status: String
         var error: String?
         var progress: Double?
@@ -361,6 +444,9 @@ enum Api {
 
         init(_ o: [String: Any]) {
             id = o["id"] as? Int ?? 0
+            kind = o["kind"] as? String ?? ""
+            title = o["title"] as? String ?? ""
+            log = o["log"] as? String ?? ""
             status = o["status"] as? String ?? "failed"
             error = o["error"] as? String
             progress = (o["progress"] as? NSNumber)?.doubleValue

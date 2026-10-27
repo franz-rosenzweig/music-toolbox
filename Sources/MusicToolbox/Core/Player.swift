@@ -78,6 +78,15 @@ final class Player {
 enum Covers {
     private static let cache = NSCache<NSString, NSImage>()
 
+    /// Art behind the login by its path on the panel (an inbox album's cover).
+    static func image(path: String) async -> NSImage? {
+        let key = path as NSString
+        if let hit = cache.object(forKey: key) { return hit }
+        guard let panel = Config.panel, let data = await panel.data(path: path), let img = NSImage(data: data) else { return nil }
+        cache.setObject(img, forKey: key)
+        return img
+    }
+
     static func image(_ id: String, size: Int = 128) async -> NSImage? {
         let key = "\(id)-\(size)" as NSString
         if let hit = cache.object(forKey: key) { return hit }

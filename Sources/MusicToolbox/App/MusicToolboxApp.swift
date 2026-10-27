@@ -19,8 +19,13 @@ struct MusicToolboxApp: App {
                     .keyboardShortcut("o", modifiers: .command)
             }
             CommandMenu("Go") {
-                Button("Upload") { Nav.shared.place = .upload }.keyboardShortcut("1", modifiers: .command)
-                Button("Library") { Nav.shared.place = .library }.keyboardShortcut("2", modifiers: .command)
+                Button("Needs You") { Nav.shared.place = .needs }.keyboardShortcut("1", modifiers: .command)
+                Button("Upload") { Nav.shared.place = .upload }.keyboardShortcut("2", modifiers: .command)
+                Button("Library") { Nav.shared.place = .library }.keyboardShortcut("3", modifiers: .command)
+                Button("History") { Nav.shared.place = .history }.keyboardShortcut("4", modifiers: .command)
+                Button("Activity") { Nav.shared.place = .activity }.keyboardShortcut("5", modifiers: .command)
+                Divider()
+                Button("Search") { Nav.shared.place = .library; Nav.shared.focusSearch.toggle() }.keyboardShortcut("k", modifiers: .command)
             }
         }
 
@@ -31,6 +36,9 @@ struct MusicToolboxApp: App {
 }
 
 enum Place: Hashable {
+    case needs
+    case history
+    case activity
     case upload
     case library
     case device(String)
@@ -40,8 +48,10 @@ enum Place: Hashable {
 @Observable @MainActor
 final class Nav {
     static let shared = Nav()
-    var place: Place? = .upload
+    var place: Place? = .needs
     var choose = false
+    var needsSelection: String?
+    var focusSearch = false
     var sessions: [String: DeviceSession] = [:]
 
     func session(for v: Volume) -> DeviceSession {

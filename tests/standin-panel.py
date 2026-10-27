@@ -10,6 +10,7 @@ folders the test made, with test credentials only (test / test-password).
 --slow         wait that long before answering each chunk (so a test can pause mid-upload)
 --needs-look   report this many tracks of an upload as left for review
 --issues       pretend that many FLACs break the device's block-size limit (a fix clears them)
+--samples      the panel's docs/api-samples.json: its recorded answers are replayed for history, covers, health and the device's added albums and copy history
 --corrupt-once flip one byte of the first checksummed file before the check at finish (the app must send it again)
 ROOT/stage holds batches, ROOT/inbox the finished folders, ROOT/log.txt every request."""
 import base64, hashlib, json, math, os, re, secrets, shutil, struct, sys, threading, time
@@ -22,6 +23,7 @@ opt = lambda name, default: type(default)(args[args.index(name) + 1]) if name in
 LIB, QUEUE, SYNCLOG = opt('--lib', ''), opt('--queue', ''), opt('--log', '')
 DROP_AFTER, SLOW, NEEDS_LOOK, ISSUES = opt('--drop-after', 0), opt('--slow', 0.0), opt('--needs-look', 0), opt('--issues', 0)
 CORRUPT_ONCE = '--corrupt-once' in args
+SAMPLES_FILE = opt('--samples', '')
 DONE = QUEUE[:-4] + '.done.txt' if QUEUE.endswith('.txt') else QUEUE + '.done'
 STAGE, INBOX = os.path.join(root, 'stage'), os.path.join(root, 'inbox')
 for d in (STAGE, INBOX): os.makedirs(d, exist_ok=True)
@@ -32,8 +34,46 @@ PROFILE = {'id': 'hifi-walker-h2', 'name': 'HiFi Walker H2 (Rockbox)', 'formats'
            'max_sample_rate': 192000, 'max_bit_depth': 24, 'max_flac_blocksize': 4608, 'convert_to': None, 'source': None, 'queue': True,
            'protect': ['/.rockbox/', '/Playlists/', '/*.pdf', '/.dap-sync-target', '/System Volume Information/', '/settings.txt', '/update.upt', '/*.upt'],
            'fixes': ['flac_blocksize']}
+
+HEB = ('ניר כנען', 'נקודת תורפה')
+NEEDS = [
+    {'id': 'imp-aaaa1111-bbbb2222', 'group': 'imports', 'kind': 'import', 'title': 'Mud memory', 'sub': 'Yoavi · auto-import couldn’t match it · 2 tracks', 'age': 1793077765.3, 'later': False, 'open': True, 'cover': '/inbox/art/aaaa1111/bbbb2222', 'fix': None},
+    {'id': 'imp-aaaa1111-cccc3333', 'group': 'imports', 'kind': 'import', 'title': HEB[1], 'sub': HEB[0] + ' · still arriving · 1 tracks', 'age': 1793077765.3, 'later': False, 'open': True, 'cover': None, 'fix': None},
+    {'id': 'names', 'group': 'health', 'kind': 'names', 'title': '2 names not in Latin letters', 'sub': '1 artist · 1 album title', 'age': None, 'later': False, 'open': True, 'cover': None, 'fix': None},
+    {'id': 'covers', 'group': 'health', 'kind': 'covers', 'title': '1 album with no cover', 'sub': 'Mud memory', 'age': None, 'later': False, 'open': True, 'cover': None, 'fix': None},
+    {'id': 'fix-split', 'group': 'health', 'kind': 'fix', 'title': '1 album split into several entries in Navidrome', 'sub': 'Test Album', 'age': None, 'later': False, 'open': True, 'cover': None, 'fix': 'split'},
+    {'id': 'f-weekly', 'group': 'health', 'kind': 'finding', 'title': '3 · Tracks Navidrome can’t find', 'sub': 'from the weekly health check', 'age': None, 'later': False, 'open': True, 'cover': None, 'fix': None},
+    {'id': 'dap', 'group': 'device', 'kind': 'dap', 'title': '17 albums waiting for the DAP', 'sub': 'copies on the next sync from your Mac', 'age': None, 'later': False, 'open': False, 'cover': None, 'fix': None},
+]
+INBOX_ALBUMS = {
+    ('aaaa1111', 'bbbb2222'): {'id': 'imp-aaaa1111-bbbb2222', 'fid': 'aaaa1111', 'gid': 'bbbb2222', 'folder': 'Mixed upload', 'artist': 'Yoavi', 'album': 'Mud memory', 'year': 2026, 'state': 'pending', 'age_minutes': 20, 'n_tracks': 2, 'bytes': 7000000, 'duration': 366.3, 'format': 'FLAC',
+        'tracks': [{'n': 1, 'title': 'Background noise', 'duration': 172.6, 'file': 'Background noise - Yoavi.flac'}, {'n': 2, 'title': 'Productive defective', 'duration': 193.7, 'file': 'Productive defective - Yoavi.flac'}],
+        'art': '/inbox/art/aaaa1111/bbbb2222', 'needs_asis': [], 'target': 'Yoavi/Mud memory/', 'last_job': None},
+    ('aaaa1111', 'cccc3333'): {'id': 'imp-aaaa1111-cccc3333', 'fid': 'aaaa1111', 'gid': 'cccc3333', 'folder': 'Mixed upload', 'artist': HEB[0], 'album': HEB[1], 'year': 2025, 'state': 'arriving', 'age_minutes': 2, 'n_tracks': 1, 'bytes': 3000000, 'duration': 180.0, 'format': 'FLAC',
+        'tracks': [{'n': 1, 'title': 'שיר', 'duration': 180.0, 'file': 'שיר.flac'}], 'art': None, 'needs_asis': [{'kind': 'artist', 'name': HEB[0]}, {'kind': 'album', 'name': HEB[1]}], 'target': HEB[0] + '/' + HEB[1] + '/', 'last_job': None},
+}
+
+
+def candidate(gid, query=None):
+    heb = gid == 'cccc3333'
+    needs = [{'kind': 'artist', 'name': HEB[0], 'suggest': 'Nir Knaan'}, {'kind': 'album', 'name': HEB[1], 'suggest': 'Nekudat Torpa'}] if heb else []
+    return {'id': 'rel-' + gid + ('-q' if query else ''), 'score': 0.92 if query else 1.0, 'quality': 'ok' if query else 'good', 'artist': HEB[0] if heb else 'Yoavi', 'album': HEB[1] if heb else 'Mud memory', 'year': 2026, 'country': 'XW', 'media': 'Digital Media', 'label': None,
+            'disambig': '', 'url': 'https://musicbrainz.org/release/test', 'tracks_total': 2, 'matched': 2, 'of_files': 2, 'titles_change': 1,
+            'tracks': [{'index': 1, 'medium': 1, 'file': 'Background noise - Yoavi.flac', 'title': 'Background noise', 'new_title': 'Background Noise', 'matched': True, 'length': 172.0, 'new_length': 172.6},
+                       {'index': 2, 'medium': 1, 'file': 'Productive defective - Yoavi.flac', 'title': 'Productive defective', 'new_title': 'Productive defective', 'matched': True, 'length': 193.0, 'new_length': 193.7}],
+            'missing': [], 'extra': [], 'penalties': [{'name': 'year', 'value': 0.02}], 'needs': needs}
+
+
+SAMPLES = json.load(open(SAMPLES_FILE)) if SAMPLES_FILE else {}
+
+
+def sample(prefix, default=None):
+    k = next((k for k in sorted(SAMPLES) if k.startswith(prefix)), None)
+    return SAMPLES[k]['response'] if k else default
+
+
 lock = threading.Lock()
-state = {'corrupted': False, 'dropped': False, 'jobs': {}, 'next_job': 1, 'fixed': set()}
+state = {'lookups': {}, 'english': [], 'corrupted': False, 'dropped': False, 'jobs': {}, 'next_job': 1, 'fixed': set()}
 
 
 def log(line):
@@ -121,6 +161,15 @@ PNG = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4
 def job_json(jid, j):
     j['polls'] += 1
     running = j['polls'] < 3
+    if 'result' in j:
+        return {'id': jid, 'kind': j['kind'], 'title': j['kind'], 'status': 'running' if running else 'done', 'result': None if running else j['result'], 'error': None, 'progress': None if running else 1.0,
+                'run': None if running else j.get('run'), 'seconds': j['polls'], 'log': ''}
+    if j['kind'] in ('import-mb', 'import-asis'):
+        result = {'run': j['kind'] + '-test', 'albums': [{'status': 'imported', 'artist': j['artist'], 'album': j['album'], 'path': j['artist'] + '/' + j['album'], 'tracks': 2, 'lyrics_files': 0, 'detail': None, 'verify': {}, 'names_still_non_latin': []}], 'error': None}
+        return {'id': jid, 'kind': j['kind'], 'title': 'Import ' + j['album'], 'status': 'running' if running else 'done', 'result': None if running else result, 'error': None, 'progress': None if running else 1.0,
+                'run': None if running else j['kind'] + '-test', 'seconds': j['polls'], 'log': 'importing…' if running else ''}
+    if j['kind'] == 'names':
+        return {'id': jid, 'kind': 'names', 'title': 'Rename ' + str(len(j['renames'])) + ' names', 'status': 'running' if running else 'done', 'result': None if running else {'renames': j['renames']}, 'error': None, 'progress': None, 'run': 'names-test', 'seconds': j['polls'], 'log': ''}
     if j['kind'] == 'upload-import':
         left = min(NEEDS_LOOK, j['tracks'])
         result = {'tracks_total': j['tracks'], 'tracks_imported': j['tracks'] - left, 'tracks_left': left}
@@ -164,6 +213,47 @@ class H(BaseHTTPRequestHandler):
         log(f'GET {self.path}')
         if path == '/healthz': return self.send(200, {'ok': True})
         if path == '/api/devices': return self.send(200, [PROFILE])
+        if path == '/api/needs': return self.send(200, NEEDS)
+        if path == '/api/history': return self.send(200, sample('GET /api/history?kind=audio' if 'audio' in (q.get('kind') or []) else 'GET /api/history?limit=3', {'runs': [], 'total': 0, 'next': None}))
+        m = re.match(r'^/api/history/([\w.-]+)/undo-preview$', path)
+        if m: return self.send(200, sample('GET /api/history/{run}/undo-preview (a tag run)'))
+        m = re.match(r'^/api/history/([\w.-]+)$', path)
+        if m: return self.send(200, {**sample('GET /api/history/{run} (a tag run)'), 'run': m[1]})
+        m = re.match(r'^/api/tracks/(\w+)/lyrics$', path)
+        if m:
+            _, tracks = library()
+            t = tracks.get(m[1])
+            return self.send(200, sample('GET /api/tracks/{id}/lyrics (synced)') if t and t['track'] == 1 else sample('GET /api/tracks/{id}/lyrics (none)'))
+        if path == '/api/covers':
+            albums, _ = library()
+            return self.send(200, [{**a, 'has_cover': False, 'queued': False, 'attention': True, 'lyrics': {'synced': 0, 'plain': 0, 'instrumental': 0, 'none': a['tracks']}} for a in list(albums.values())[:1]])
+        m = re.match(r'^/api/covers/(\w+)/candidates$', path)
+        if m: return self.send(200, sample('GET /api/covers/{album_id}/candidates'))
+        m = re.match(r'^/api/health/(split|variants|multi|unknown)$', path)
+        if m: return self.send(200, sample('GET /api/health/' + m[1]))
+        if path == '/api/health/findings': return self.send(200, sample('GET /api/health/findings'))
+        m = re.match(r'^/api/devices/([\w-]+)/queue/new$', path)
+        if m: return self.send(200, sample('GET /api/devices/{id}/queue/new'))
+        m = re.match(r'^/api/devices/([\w-]+)/syncs$', path)
+        if m: return self.send(200, sample('GET /api/devices/{id}/syncs'))
+        if path == '/api/names':
+            return self.send(200, [{'kind': 'artist', 'name': HEB[0], 'suggest': 'Nir Knaan', 'why': 'known name', 'known': True, 'albums': [{'id': 'x1', 'title': HEB[1], 'artist': HEB[0]}], 'folders': [HEB[0] + '/' + HEB[1]]},
+                                   {'kind': 'album', 'name': HEB[1], 'suggest': '', 'why': '', 'known': False, 'albums': [{'id': 'x1', 'title': HEB[1], 'artist': HEB[0]}], 'folders': []}])
+        m = re.match(r'^/api/needs/imports/(\w+)/(\w+)(/candidates)?$', path)
+        if m:
+            a = INBOX_ALBUMS.get((m[1], m[2]))
+            if not a: return self.send(404, {'error': 'no such album'})
+            if not m[3]: return self.send(200, a)
+            key = (m[1], m[2])
+            n = state['lookups'].get(key, {'polls': 0, 'query': None})
+            n['polls'] += 1
+            state['lookups'][key] = n
+            if n['polls'] < 3: return self.send(200, {'job': 1, 'status': 'queued' if n['polls'] == 1 else 'running', 'error': None, 'recommendation': None, 'candidates': None})
+            c = [candidate(m[2])] + ([candidate(m[2], n['query'])] if n['query'] else [])
+            return self.send(200, {'job': 1, 'status': 'done', 'error': None, 'recommendation': 'strong', 'candidates': c})
+        if path.startswith('/inbox/art/'): return self.send(200, PNG, 'image/png')
+        if path == '/api/jobs' and 'recent' in q:
+            return self.send(200, [job_json(j, v) for j, v in sorted(state['jobs'].items(), reverse=True)][:int(q['recent'][0])])
         m = re.match(r'^/api/devices/([\w-]+)/queue$', path)
         if m: return self.send(200, [entry_info(e) for e in read_queue()]) if m[1] == PROFILE['id'] else self.send(404, {'error': 'no such device'})
         m = re.match(r'^/api/devices/([\w-]+)/issues$', path)
@@ -178,15 +268,23 @@ class H(BaseHTTPRequestHandler):
         if path == '/api/search':
             albums, tracks = library()
             term = (q.get('q') or [''])[0].lower()
-            hit = [a for a in albums.values() if not term or term in a['artist'].lower() or term in a['album'].lower()]
-            out = {'albums': hit[:int((q.get('limit') or [50])[0])], 'total': len(hit)}
+            flt = (q.get('filter') or ['all'])[0]
+            queued = set(read_queue())
+            rich = [{**a, 'queued': a['folder'] in queued, 'attention': a['artist'] == 'Single Artist', 'lyrics': {'synced': 1, 'plain': 0, 'instrumental': 0, 'none': a['tracks'] - 1}} for a in albums.values()]
+            hit = [a for a in rich if (not term or term in a['artist'].lower() or term in a['album'].lower()) and (flt == 'all' or (flt == 'queued' and a['queued']) or (flt == 'attention' and a['attention']) or (flt == 'lyrics_none' and a['lyrics']['synced'] == 0))]
+            out = {'albums': hit[:int((q.get('limit') or [50])[0])], 'total': len(hit), 'counts': {'all': len(rich), 'attention': 1, 'nocover': 0, 'lyrics_some': 2, 'lyrics_none': 0, 'queued': len(queued)},
+                   'coverage': {'tracks': 12, 'synced': 5, 'plain': 2, 'instrumental': 1, 'none': 4}}
             if term: out['tracks'] = [t for t in tracks.values() if term in t['title'].lower() or term in t['artist'].lower()][:30]
             return self.send(200, out)
         m = re.match(r'^/api/albums/(\w+)$', path)
         if m:
             albums, tracks = library()
             a = albums.get(m[1])
-            return self.send(200, {**a, 'tracks': sorted((t for t in tracks.values() if t['album_id'] == a['id']), key=lambda t: t['track'])}) if a else self.send(404, {'error': 'no such album'})
+            if not a: return self.send(404, {'error': 'no such album'})
+            ts = sorted((t for t in tracks.values() if t['album_id'] == a['id']), key=lambda t: t['track'])
+            states = ['synced', 'missing', 'plain', 'instrumental']
+            ts = [{**t, 'lyrics': states[i % 4], 'instrumental_marked': states[i % 4] == 'instrumental', 'instrumental_lrclib': False} for i, t in enumerate(ts)]
+            return self.send(200, {**a, 'tracks': ts})
         if path == '/api/tracks':
             p = (q.get('path') or [''])[0]
             _, tracks = library()
@@ -282,6 +380,65 @@ class H(BaseHTTPRequestHandler):
             add = [e for e in entries if e not in cur and os.path.exists(os.path.join(LIB, e))]
             write_queue(cur + add)
             return self.send(200, {'added': add, 'already': [e for e in entries if e in cur], 'unknown': [e for e in entries if not os.path.exists(os.path.join(LIB, e))]})
+        m = re.match(r'^/api/needs/(imp-\w+-\w+|names|covers|dap)/later$', path)
+        if m:
+            on = bool(self.json_body().get('on'))
+            for n in NEEDS:
+                if n['id'] == m[1]: n['later'] = on
+            return self.send(200, {'id': m[1], 'later': on})
+        m = re.match(r'^/api/needs/imports/(\w+)/(\w+)/(search|apply|asis)$', path)
+        if m:
+            a = INBOX_ALBUMS.get((m[1], m[2]))
+            if not a: return self.send(404, {'error': 'no such album'})
+            body = self.json_body()
+            if m[3] == 'search':
+                state['lookups'][(m[1], m[2])] = {'polls': 0, 'query': body.get('query')}
+                return self.send(200, {'job': 2, 'status': 'queued', 'error': None, 'recommendation': None, 'candidates': None})
+            needs = [n for n in (a['needs_asis'] if m[3] == 'asis' else candidate(m[2])['needs'])]
+            eng = body.get('english') or {}
+            missing = [{'kind': n['kind'], 'name': n['name']} for n in needs if not (eng.get(n['kind']) or '').strip()]
+            if missing: return self.send(400, {'error': 'Fill in the English names first: they decide the folder and what Navidrome shows.', 'needs': missing})
+            state['english'].append(eng)
+            log(f'{m[3]} {m[1]}/{m[2]} english={json.dumps(eng, ensure_ascii=False)} candidate={body.get("candidate")}')
+            jid = state['next_job']; state['next_job'] += 1
+            artist, album = (eng.get('artist') or a['artist']), (eng.get('album') or a['album'])
+            state['jobs'][jid] = {'kind': 'import-mb' if m[3] == 'apply' else 'import-asis', 'polls': 0, 'artist': artist, 'album': album}
+            return self.send(200, {'job': jid} if m[3] == 'apply' else {'job': jid, 'folder': f'{artist}/{album}/', 'queued_for_dap': True})
+        if path == '/api/names':
+            renames = self.json_body().get('renames') or []
+            jid = state['next_job']; state['next_job'] += 1
+            state['jobs'][jid] = {'kind': 'names', 'polls': 0, 'renames': renames}
+            log(f'names {json.dumps(renames, ensure_ascii=False)}')
+            return self.send(200, {'job': jid})
+        m = re.match(r'^/api/history/([\w.-]+)/undo$', path)
+        if m:
+            jid = state['next_job']; state['next_job'] += 1
+            state['jobs'][jid] = {'kind': 'undo', 'polls': 0, 'result': {'lines': [f'reverted 7 files (28 fields) as run revert-{m[1]}']}}
+            log(f'undo {m[1]} force={self.json_body().get("force")}')
+            return self.send(200, {'job': jid})
+        m = re.match(r'^/api/(tracks/\w+/lyrics|tracks/\w+/instrumental|albums/\w+/instrumental|albums/\w+/lyrics/lookup|covers/\w+)$', path)
+        if m:
+            body = self.json_body() if 'json' in (self.headers.get('Content-Type') or '') else {'image_bytes': len(self.body())}
+            kind = 'lyrics' if 'lyrics' in m[1] and 'lookup' not in m[1] else 'lyrics-lookup' if 'lookup' in m[1] else 'cover' if m[1].startswith('covers') else 'instrumental'
+            result = {'run': 'lyrics-test', 'action': 'paste', 'kind': 'synced', 'lines': 3, 'removed': []} if kind == 'lyrics' else {'found': 2} if kind == 'lyrics-lookup' else {'run': 'cover-test', 'folder': 'x', 'path': 'x/cover.jpg', 'size': [600, 600], 'bytes': 1000, 'replaced': []} if kind == 'cover' else {}
+            jid = state['next_job']; state['next_job'] += 1
+            state['jobs'][jid] = {'kind': kind, 'polls': 0, 'result': result, 'run': result.get('run')}
+            log(f'{kind} {m[1]} {json.dumps(body)[:120]}')
+            return self.send(200, {'job': jid, **({'tracks': 2} if 'albums' in m[1] and 'instrumental' in m[1] else {})})
+        m = re.match(r'^/api/health/(split|variants|multi|unknown)$', path)
+        if m:
+            body = self.json_body()
+            jid = state['next_job']; state['next_job'] += 1
+            run = None if m[1] == 'variants' else 'fix-test'
+            state['jobs'][jid] = {'kind': 'tag-fix', 'polls': 0, 'result': {'run': run, 'summary': '28 field changes across 7 files'}, 'run': run}
+            log(f'health {m[1]} {json.dumps(body, ensure_ascii=False)[:200]}')
+            return self.send(200, {'job': jid, 'run': run})
+        if path == '/api/health/ignore':
+            body = self.json_body()
+            log(f'ignore {json.dumps(body)}')
+            return self.send(200, {'id': body.get('id'), 'ignored': True})
+        m = re.match(r'^/api/devices/([\w-]+)/queue/new$', path)
+        if m: return self.send(200, sample('POST /api/devices/{id}/queue/new'))
         if path == '/api/sync-log':
             body = self.json_body()
             if body.get('result') not in ('finished', 'failed', 'cancelled'): return self.send(400, {'error': 'result must be finished, failed or cancelled'})
@@ -298,6 +455,11 @@ class H(BaseHTTPRequestHandler):
         if m:
             shutil.rmtree(os.path.join(STAGE, m[1]), ignore_errors=True)
             self.send_response(204); self.send_header('Content-Length', '0'); self.end_headers(); return
+        m = re.match(r'^/api/tracks/(\w+)/lyrics$', path)
+        if m:
+            jid = state['next_job']; state['next_job'] += 1
+            state['jobs'][jid] = {'kind': 'lyrics', 'polls': 0, 'result': {'run': 'lyrics-rm-test', 'action': 'remove', 'removed': ['x.lrc']}, 'run': 'lyrics-rm-test'}
+            return self.send(200, {'job': jid})
         m = re.match(r'^/api/devices/([\w-]+)/queue$', path)
         if m:
             entries = q.get('entry') or self.json_body().get('entries') or []

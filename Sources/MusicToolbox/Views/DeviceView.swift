@@ -17,7 +17,8 @@ struct DeviceView: View {
                 if let d = session.dryRun { dryRun(d) }
                 if session.profile.canFix || session.issues != nil { issuesSection }
                 if session.profile.hasQueue { queue }
-                if !session.history.isEmpty { history }
+                if let n = session.newAlbums, !n.albums.isEmpty { added(n) }
+                history
             }
             .padding(28)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -261,26 +262,63 @@ struct DeviceView: View {
         .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 14))
     }
 
-    private var history: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("History").font(.title3.weight(.semibold))
+    private func added(_ n: Api.NewAlbums) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Added Since the Last Copy").font(.title3.weight(.semibold))
+                Spacer()
+                Text("\(n.albums.count)").foregroundStyle(.secondary).monospacedDigit()
+                Button("Queue \(n.albums.count)") { session.queueNewAlbums() }.buttonStyle(.borderedProminent).controlSize(.small)
+            }
             VStack(spacing: 0) {
-                ForEach(Array(session.history.enumerated()), id: \.element.id) { i, h in
+                ForEach(Array(n.albums.prefix(12).enumerated()), id: \.element.id) { i, a in
                     if i > 0 { Divider() }
-                    HStack(spacing: 8) {
-                        Image(systemName: h.result == "finished" ? "checkmark.circle.fill" : h.result == "cancelled" ? "stop.circle" : "xmark.circle.fill")
-                            .foregroundStyle(h.result == "finished" ? .green : h.result == "cancelled" ? .secondary : .red)
-                        Text(label(h.mode))
-                        Text("· \(h.copied) copied").foregroundStyle(.secondary)
-                        if h.removed > 0 { Text("· \(h.removed) removed").foregroundStyle(.secondary) }
-                        Text("· \(Fmt.clock(h.seconds))").foregroundStyle(.secondary)
+                    HStack(spacing: 12) {
+                        CoverView(albumID: a.hasCover ? a.id : nil, size: 32)
+                        VStack(alignment: .leading, spacing: 1) { Text(a.album).lineLimit(1); Text(a.artist).font(.callout).foregroundStyle(.secondary).lineLimit(1) }
                         Spacer()
-                        Text(h.date, style: .time).foregroundStyle(.secondary)
+                        Text(Fmt.size(a.bytes)).font(.callout).foregroundStyle(.secondary).monospacedDigit()
                     }
-                    .monospacedDigit().padding(.horizontal, 14).padding(.vertical, 8)
+                    .padding(.horizontal, 12).padding(.vertical, 6)
                 }
             }
             .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 14))
+            if n.albums.count > 12 { Text("+ \(n.albums.count - 12)").foregroundStyle(.secondary) }
         }
+    }
+
+    /// The panel's copy history, which includes this app's copies (it reports each one).
+    @ViewBuilder private var history: some View {
+        let rows = session.syncs?.syncs ?? []
+        if !rows.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Copies").font(.title3.weight(.semibold))
+                    Spacer()
+                    if let l = session.syncs?.lastFinished { Text("Last \(l.time)").foregroundStyle(.secondary).monospacedDigit() }
+                }
+                VStack(spacing: 0) {
+                    ForEach(Array(rows.prefix(12).enumerated()), id: \.element.id) { i, h in
+                        if i > 0 { Divider() }
+                        HStack(spacing: 8) {
+                            Image(systemName: h.result == "finished" ? "checkmark.circle.fill" : h.result == "cancelled" ? "stop.circle" : "xmark.circle.fill")
+                                .foregroundStyle(h.result == "finished" ? .green : h.result == "cancelled" ? .secondary : .red)
+                            Text(Self.mode(h.mode))
+                            if let n = h.copied { Text("· \(n) copied").foregroundStyle(.secondary) }
+                            if let n = h.removed, n > 0 { Text("· \(n) removed").foregroundStyle(.secondary) }
+                            if let s = h.seconds { Text("· \(Fmt.clock(s))").foregroundStyle(.secondary) }
+                            Spacer()
+                            Text(h.time).foregroundStyle(.secondary)
+                        }
+                        .monospacedDigit().padding(.horizontal, 14).padding(.vertical, 8)
+                    }
+                }
+                .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 14))
+            }
+        }
+    }
+
+    static func mode(_ m: String?) -> String {
+        switch m { case "queue": "Queue"; case "all": "Everything"; case "mirror": "Mirror"; case "wipe": "Wipe"; default: m ?? "" }
     }
 }

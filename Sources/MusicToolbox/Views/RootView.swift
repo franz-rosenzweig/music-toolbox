@@ -4,6 +4,7 @@ struct RootView: View {
     @State private var nav = Nav.shared
     @State private var store = DeviceStore.shared
     @State private var uploads = UploadStore.shared
+    @State private var needs = NeedsStore.shared
     @AppStorage("panelURL") private var panelURL = ""
     @AppStorage("panelUser") private var panelUser = ""
 
@@ -16,10 +17,15 @@ struct RootView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: $nav.place) {
+                Label("Needs You", systemImage: "tray")
+                    .badge(needs.open)
+                    .tag(Place.needs)
                 Label("Upload", systemImage: "arrow.up.circle")
                     .badge(uploads.jobs.filter { $0.state != .done }.count)
                     .tag(Place.upload)
                 Label("Library", systemImage: "magnifyingglass").tag(Place.library)
+                Label("History", systemImage: "clock.arrow.circlepath").tag(Place.history)
+                Label("Activity", systemImage: "list.bullet.rectangle").tag(Place.activity)
                 Section("Devices") {
                     ForEach(store.devices) { v in
                         Label(v.title, systemImage: "sdcard")
@@ -41,8 +47,11 @@ struct RootView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 switch nav.place {
-                case .upload, nil: UploadView()
+                case .needs, nil: NeedsView()
+                case .upload: UploadView()
                 case .library: LibraryView()
+                case .history: HistoryView()
+                case .activity: ActivityView()
                 case .device(let id):
                     if let v = store.volumes.first(where: { $0.id == id }) { DeviceView(session: nav.session(for: v)) } else { Color.clear }
                 case .setup(let id):
@@ -51,9 +60,15 @@ struct RootView: View {
             }
         }
         .safeAreaInset(edge: .bottom) { PlayerBar() }
+        .task {
+            while !Task.isCancelled {
+                await needs.load()
+                try? await Task.sleep(for: .seconds(45))
+            }
+        }
         .onChange(of: store.volumes) { _, vols in
-            if case .device(let id) = nav.place, !vols.contains(where: { $0.id == id }) { nav.place = .upload }
-            if case .setup(let id) = nav.place, !vols.contains(where: { $0.id == id }) { nav.place = .upload }
+            if case .device(let id) = nav.place, !vols.contains(where: { $0.id == id }) { nav.place = .needs }
+            if case .setup(let id) = nav.place, !vols.contains(where: { $0.id == id }) { nav.place = .needs }
         }
     }
 }
