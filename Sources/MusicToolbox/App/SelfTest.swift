@@ -309,6 +309,15 @@ enum SelfTest {
         if let n = decode("GET /api/devices/{id}/queue/new (the live", Api.NewAlbums.self) { check(n.albums.isEmpty, "queue/new on the live library: none") }
         if let a = decode("POST /api/devices/{id}/queue/new", Api.Added.self) { check(true, "queued \(a.added.count) new albums") }
         if let y = decode("GET /api/devices/{id}/syncs\u{2}".replacingOccurrences(of: "\u{2}", with: ""), Api.Syncs.self) { check(!y.syncs.isEmpty, "syncs: \(y.syncs.count), last finished \(y.lastFinished?.ts ?? "-")") }
+        if let l = decode("POST /api/devices/{id}/contents", Api.Listed.self) { check(l.files > 0 && l.asOf != nil, "contents: \(l.files) files listed at \(l.asOf ?? "-")") }
+        if let m = decode("GET /api/devices/{id}/missing", Api.NotOnDevice.self) {
+            let partial = m.albums.first { $0.status == "partial" }, changed = m.albums.first { $0.status == "changed" }
+            check(m.asOf != nil && m.counts != nil && !m.albums.isEmpty && m.albums.allSatisfy { !$0.entries.isEmpty },
+                  "missing: \(m.albums.count) albums (\(m.counts.map { "\($0.missing) missing, \($0.partial) partial, \($0.changed) changed" } ?? "-")), \(m.filesOnDevice ?? 0) files on \(m.volume ?? "-")")
+            check(partial.map { $0.label.hasSuffix("missing") && $0.missingTracks > 0 } ?? true, "a partial album says how many: \(partial?.label ?? "-")")
+            check(changed.map { $0.changedTracks > 0 } ?? true, "a changed album: \(changed?.label ?? "-")")
+        }
+        if let a = decode("POST /api/devices/{id}/missing/queue", Api.Added.self) { check(true, "queued \(a.added.count) from the missing list") }
         if let y = decode("GET /api/devices/{id}/syncs?limit=3 (the live", Api.Syncs.self) { check(y.syncs.count <= 3 && y.syncs.allSatisfy { !$0.time.isEmpty }, "live syncs: \(y.syncs.map { "\($0.result ?? "") \($0.time)" })") }
         if let (c, d) = entry("GET /api/jobs/{id} (unknown id"), case .refused = Panel.failure(c, d) { check(true, "an unknown job is refused") } else { check(false, "an unknown job is refused") }
     }
@@ -596,6 +605,13 @@ enum SelfTest {
             await pause(1.0)
         }
 
+        // the panel can't see the player: the app tells it what's there when the player shows up
+        check(await until(30, { s.missing?.asOf != nil && !s.listing }), "sends the player's listing when it shows up")
+        check(s.missing?.volume == "MTTESTDAP" && s.missing?.filesOnDevice == 0 && s.missing?.mac?.isEmpty == false,
+              "the panel has it: \(s.missing?.filesOnDevice ?? -1) files on \(s.missing?.volume ?? "-") from \(s.missing?.mac ?? "-")")
+        check(s.missing?.albums.count == 3 && s.missing?.albums.allSatisfy({ $0.status == "missing" && $0.label == "Missing" }) == true,
+              "every library album is not on the empty player (\(s.missing?.albums.map { "\($0.album.album) \($0.status)" } ?? []))")
+
         // what the device cannot play, and the panel's fix
         check(s.issues?.total == 2 && s.issues?.fixable == 2, "finds \(s.issues?.total ?? -1) issues, \(s.issues?.fixable ?? -1) fixable")
         check(s.issues?.issues.first?.checkLabel == "FLAC block size" && s.issues?.issues.first?.value?.text == "16384", "an issue says what and by how much")
@@ -632,6 +648,31 @@ enum SelfTest {
         let remaining = try? await Config.panel?.queue(vol.profile.id).map(\.entry)
         check(remaining == ["Gone Artist/Gone Album"], "the panel's queue keeps only the entry that could not copy (\(remaining ?? []))")
 
+        // after the copy the listing is sent again: one track of Single Album stayed on the server
+        let single = s.missing?.albums.first
+        check(s.missing?.filesOnDevice == 4 && s.missing?.albums.count == 1 && single?.status == "partial" && single?.label == "1 of 2 missing",
+              "the copy sends a new listing: \(s.missing?.filesOnDevice ?? -1) files, not on it: \(s.missing?.albums.map { "\($0.album.album) \($0.label)" } ?? [])")
+        let grown = vol.music.appendingPathComponent("Artist A/Album One/02 Two.flac")
+        if let h = try? FileHandle(forWritingTo: grown) { h.seekToEndOfFile(); h.write(Data(count: 1000)); try? h.close() }
+        s.sendListing()
+        check(await until(30, { !s.listing && s.missing?.albums.contains { $0.status == "changed" } == true }), "List Again sees a track that differs")
+        let changed = s.missing?.albums.first { $0.status == "changed" }
+        check(changed?.album.album == "Album One" && changed?.label == "1 changed", "an album with another size is changed (\(changed?.label ?? "-"))")
+        check(s.missing?.counts.map { $0.missing == 0 && $0.partial == 1 && $0.changed == 1 } == true, "counts: \(s.missing?.counts.map { "\($0.missing) \($0.partial) \($0.changed)" } ?? "-")")
+        Nav.shared.place = .device(vol.id)
+        await pause(1.0)
+        capture("device-not-on-it")
+        if let single {
+            Nav.shared.toast = nil
+            s.queueMissing([single])
+            check(await until(10, { Nav.shared.toast?.message == "Queued Single Album" }), "queueing from the list offers Undo")
+            let q = (try? await Config.panel?.queue(vol.profile.id).map(\.entry)) ?? []
+            check(q.contains("Single Artist/Single Album") && s.missing?.albums.first { $0.id == single.id }?.album.queued == true, "the album is queued and shows so (\(q))")
+            if let undo = Nav.shared.toast?.undo { Nav.shared.toast = nil; await undo() }
+            let back = (try? await Config.panel?.queue(vol.profile.id).map(\.entry)) ?? []
+            check(back == ["Gone Artist/Gone Album"] && s.missing?.albums.first { $0.id == single.id }?.album.queued == false, "Undo takes it off again (\(back))")
+        }
+
         // a mirror removes what the library no longer has, and never what the player owns
         let stale = vol.music.appendingPathComponent("Stale Artist/Old Album", isDirectory: true)
         try? FileManager.default.createDirectory(at: stale, withIntermediateDirectories: true)
@@ -651,6 +692,8 @@ enum SelfTest {
         check(s.history.first?.removed == 1, "history counts 1 removed, not the ._ twins (\(s.history.first?.removed ?? -1))")
         let after = try? await Config.panel?.queue(vol.profile.id)
         check(after?.isEmpty == true, "a mirror takes the whole queue")
+        check(s.missing?.asOf != nil && s.missing?.albums.isEmpty == true && s.missing?.filesOnDevice == 5,
+              "after the mirror nothing is missing (\(s.missing?.filesOnDevice ?? -1) files, \(s.missing?.albums.map(\.album.album) ?? []))")
 
         s.check()
         check(await until(60, { !s.busy }), "checks")

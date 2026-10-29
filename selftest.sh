@@ -116,7 +116,7 @@ if [[ -z $REAL ]]; then
   grep -q "dropped the connection" $WORK/panel/log.txt && grep -q "^resumed" $WORK/panel/log.txt && ok "the server saw a dropped connection and a resume" || fail "no drop/resume seen"
   grep -q "bad checksum" $WORK/panel/log.txt && ok "a corrupted file was caught by its checksum and sent again" || fail "no checksum failure seen"
   [[ -z $(ls -A "$WORK/panel/stage") ]] && ok "no staging left behind" || fail "staging left"
-  for e in "Artist A/Album One" "אמן/אלבום א" ; do diff -r "$LIB/$e" "$VOL/$e" >/dev/null && ok "on the player, identical: $e" || fail "differs on the player: $e"; done
+  for e in "Artist A/Album One" "אמן/אלבום א" ; do diff -r -x "._*" "$LIB/$e" "$VOL/$e" >/dev/null && ok "on the player, identical (._ twins aside, counted below): $e" || fail "differs on the player: $e"; done
   cmp -s "$LIB/Single Artist/Single Album/05 Track.flac" "$VOL/Single Artist/Single Album/05 Track.flac" && ok "the single track is on the player" || fail "single track missing"
   [[ $(cat "$VOL/settings.txt") == "device settings" && $(cat "$VOL/.rockbox/config.cfg") == "rockbox settings" && -f "$VOL/Playlists/x.m3u" ]] && ok "the player's own files untouched, through a mirror" || fail "device files changed"
   # macOS 14+ tags every file with com.apple.provenance and exFAT keeps that as a ._ twin; the app
@@ -126,6 +126,17 @@ if [[ -z $REAL ]]; then
   [[ ! -e "$VOL/Stale Artist" ]] && ok "the mirror removed the stale album" || fail "stale album still there"
   [[ ! -s $Q ]] && ok "the queue ended empty" || fail "queue is: $(cat "$Q")"
   [[ $(wc -l < "${Q%.txt}.done.txt") -eq 4 ]] && ok "all four entries moved to the done list" || fail "done list wrong"
+  python3 - "$WORK/panel/contents.json" "$LIB" <<'PY' && ok "the last listing names every library track by its library path, nothing else" || fail "listing"
+import json, os, sys, unicodedata
+body = json.load(open(sys.argv[1]))
+got = sorted(unicodedata.normalize('NFC', f['path']) for f in body['files'])
+lib = sys.argv[2]
+want = sorted(unicodedata.normalize('NFC', os.path.relpath(os.path.join(r, f), lib)) for r, _, fs in os.walk(lib) for f in fs if f.endswith('.flac'))
+assert got == want, (got, want)
+assert all(f['bytes'] == os.path.getsize(os.path.join(lib, f['path'])) for f in body['files']), body['files']
+assert body['volume'] == 'MTTESTDAP' and body['mac'], body
+PY
+  [[ $(grep -c '^contents ' $WORK/panel/log.txt) -ge 4 ]] && ok "listings sent: on arrival, after each copy, on List Again ($(grep -c '^contents ' $WORK/panel/log.txt))" || fail "too few listings: $(grep -c '^contents ' $WORK/panel/log.txt)"
   python3 - "$LOG" <<'PY' && ok "sync log lines are valid JSON the panel can read" || fail "sync log"
 import json, sys
 rows = [json.loads(l) for l in open(sys.argv[1])]

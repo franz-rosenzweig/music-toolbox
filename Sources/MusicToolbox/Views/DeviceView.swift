@@ -3,6 +3,9 @@ import SwiftUI
 struct DeviceView: View {
     @Bindable var session: DeviceSession
     @State private var store = DeviceStore.shared
+    @State private var missingStatus = "all"
+    @State private var missingFilter = ""
+    @State private var missingAll = false
 
     private var v: Volume { session.volume }
 
@@ -18,6 +21,7 @@ struct DeviceView: View {
                 if session.profile.canFix || session.issues != nil { issuesSection }
                 if session.profile.hasQueue { queue }
                 if let n = session.newAlbums, !n.albums.isEmpty { added(n) }
+                if let m = session.missing { notOnDevice(m) }
                 history
             }
             .padding(28)
@@ -281,6 +285,79 @@ struct DeviceView: View {
             .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 14))
             if n.albums.count > 12 { Text("+ \(n.albums.count - 12)").foregroundStyle(.secondary) }
         }
+    }
+
+    /// Library albums the device lacks, from the listing this app sends the panel.
+    private func notOnDevice(_ m: Api.NotOnDevice) -> some View {
+        let c = m.counts ?? .init(missing: 0, partial: 0, changed: 0)
+        let term = missingFilter.trimmingCharacters(in: .whitespaces)
+        let rows = m.albums.filter { a in
+            (missingStatus == "all" || a.status == missingStatus)
+                && (term.isEmpty || a.album.album.localizedCaseInsensitiveContains(term) || a.album.artist.localizedCaseInsensitiveContains(term))
+        }
+        let todo = rows.filter { $0.album.queued != true }
+        let shown = missingAll ? rows : Array(rows.prefix(30))
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Not on the Device").font(.title3.weight(.semibold))
+                Spacer()
+                if session.listing { ProgressView().controlSize(.small) }
+                else if m.asOf != nil {
+                    Text("\(m.albums.count) · \(m.filesOnDevice ?? 0) files · \(m.time)").foregroundStyle(.secondary).monospacedDigit()
+                } else { Text("Not Listed").foregroundStyle(.secondary) }
+                Button("List Again", systemImage: "arrow.clockwise") { session.sendListing() }
+                    .labelStyle(.iconOnly).buttonStyle(.borderless).disabled(session.busy || session.listing)
+            }
+            if m.asOf != nil && m.albums.isEmpty {
+                Label("None", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+            } else if !m.albums.isEmpty {
+                HStack(spacing: 10) {
+                    Picker("Status", selection: $missingStatus) {
+                        Text("All \(m.albums.count)").tag("all")
+                        Text("Missing \(c.missing)").tag("missing")
+                        Text("Partial \(c.partial)").tag("partial")
+                        Text("Changed \(c.changed)").tag("changed")
+                    }
+                    .pickerStyle(.segmented).labelsHidden().fixedSize()
+                    TextField("Filter", text: $missingFilter).textFieldStyle(.roundedBorder).frame(maxWidth: 200)
+                    Spacer()
+                    if !todo.isEmpty {
+                        Button("Queue \(todo.count)") { session.queueMissing(todo) }
+                            .buttonStyle(.borderedProminent).controlSize(.small).disabled(session.busy)
+                    }
+                }
+                if !rows.isEmpty {
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(shown.enumerated()), id: \.element.id) { i, a in
+                            if i > 0 { Divider() }
+                            missingRow(a)
+                        }
+                    }
+                    .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 14))
+                    if rows.count > shown.count { Button("Show All \(rows.count)") { missingAll = true }.buttonStyle(.link) }
+                }
+            }
+        }
+    }
+
+    private func missingRow(_ a: Api.NotOnDevice.Album) -> some View {
+        HStack(spacing: 12) {
+            CoverView(albumID: a.album.hasCover ? a.id : nil, size: 32)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(a.album.album).lineLimit(1)
+                Text([a.album.artist, a.album.year.map(String.init)].compactMap { $0 }.joined(separator: " · ")).font(.callout).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer()
+            Text(a.label).font(.callout).foregroundStyle(a.status == "missing" ? Color.secondary : Color.orange).monospacedDigit()
+            Text(Fmt.size(a.album.bytes)).font(.callout).foregroundStyle(.secondary).monospacedDigit()
+            Button("Play", systemImage: "play.fill") { Player.shared.play(albumID: a.id) }.labelStyle(.iconOnly).buttonStyle(.borderless)
+            if a.album.queued == true {
+                Label("Queued", systemImage: "checkmark").font(.callout).foregroundStyle(.secondary)
+            } else {
+                Button("Queue") { session.queueMissing([a]) }.controlSize(.small).disabled(session.busy)
+            }
+        }
+        .padding(.horizontal, 12).padding(.vertical, 6)
     }
 
     /// The panel's copy history, which includes this app's copies (it reports each one).

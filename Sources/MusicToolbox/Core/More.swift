@@ -199,6 +199,54 @@ extension Api {
         var lastFinished: Sync?
         var syncs: [Sync]
     }
+
+    struct Listed: Decodable, Sendable {
+        var files: Int
+        var asOf: String?
+    }
+
+    /// The library albums the device lacks, from the listing this app last sent.
+    struct NotOnDevice: Decodable, Sendable {
+        var asOf: String?
+        var mac: String?
+        var volume: String?
+        var filesOnDevice: Int?
+        var counts: Counts?
+        var albums: [Album]
+
+        struct Counts: Decodable, Sendable { var missing: Int; var partial: Int; var changed: Int }
+
+        /// An album object as in search, plus how it differs from the device.
+        struct Album: Decodable, Identifiable, Hashable, Sendable {
+            var album: Api.Album
+            var status: String
+            var missingTracks: Int
+            var changedTracks: Int
+            var entries: [String]
+            var id: String { album.id }
+
+            private enum K: String, CodingKey { case status, missingTracks, changedTracks, entries }
+
+            init(from d: Decoder) throws {
+                album = try Api.Album(from: d)
+                let c = try d.container(keyedBy: K.self)
+                status = try c.decode(String.self, forKey: .status)
+                missingTracks = try c.decodeIfPresent(Int.self, forKey: .missingTracks) ?? 0
+                changedTracks = try c.decodeIfPresent(Int.self, forKey: .changedTracks) ?? 0
+                entries = try c.decodeIfPresent([String].self, forKey: .entries) ?? []
+            }
+
+            var label: String {
+                switch status {
+                case "partial": "\(missingTracks) of \(album.tracks) missing"
+                case "changed": "\(changedTracks) changed"
+                default: "Missing"
+                }
+            }
+        }
+
+        var time: String { asOf.map { $0.count >= 16 ? String($0.dropFirst(5).prefix(11)).replacingOccurrences(of: "T", with: " ") : $0 } ?? "" }
+    }
 }
 
 extension Panel {
@@ -310,5 +358,20 @@ extension Panel {
 
     func syncs(_ device: String, limit: Int = 30) async throws -> Api.Syncs {
         try await call("GET", "/api/devices/\(device)/syncs", query: [URLQueryItem(name: "limit", value: String(limit))])
+    }
+
+    // MARK: what's not on the device
+
+    /// What the device holds, relative to its music folder; replaces the last listing.
+    func sendContents(_ device: String, files: [(path: String, bytes: Int64)], mac: String, volume: String) async throws -> Api.Listed {
+        try await call("POST", "/api/devices/\(device)/contents",
+                       json: ["files": files.map { ["path": $0.path, "bytes": $0.bytes] }, "mac": mac, "volume": volume])
+    }
+
+    func missing(_ device: String) async throws -> Api.NotOnDevice { try await call("GET", "/api/devices/\(device)/missing") }
+
+    func queueMissing(_ device: String, _ albumIDs: [String]) async throws -> [String] {
+        let r: Api.Added = try await call("POST", "/api/devices/\(device)/missing/queue", json: ["album_ids": albumIDs])
+        return r.added
     }
 }

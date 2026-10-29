@@ -135,10 +135,12 @@ final class DeviceStore {
     func refresh() async {
         let found = await Task.detached { Self.scan() }.value
         let known = Set(devices.map(\.id))
-        let arrived = found.first { $0.isDevice && !known.contains($0.id) }
+        let arrived = found.filter { $0.isDevice && !known.contains($0.id) }
         volumes = found
+        // the panel can't see what is on a device, so it is told whenever one shows up
+        for v in arrived { Nav.shared.session(for: v).sendListing() }
         // a player that has just been connected (not one already there when the app started)
-        if started, Prefs.openForPlayers, let v = arrived { Nav.shared.arrive(.device(v.id)) }
+        if started, Prefs.openForPlayers, let v = arrived.first { Nav.shared.arrive(.device(v.id)) }
         started = true
     }
 
@@ -155,8 +157,10 @@ final class DeviceStore {
         let keys: [URLResourceKey] = [.volumeNameKey, .volumeTotalCapacityKey, .volumeAvailableCapacityKey, .volumeIsInternalKey]
         let urls = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: keys, options: [.skipHiddenVolumes]) ?? []
         let rootDev = (try? FileManager.default.attributesOfFileSystem(forPath: "/"))?[.systemNumber] as? Int
+        // a self-test sees only its own pretend player, never the owner's
+        let only = ProcessInfo.processInfo.environment["MUSIC_SELFTEST"] != nil ? ProcessInfo.processInfo.environment["MUSIC_TEST_VOLUME"] : nil
         return urls.compactMap { url in
-            guard url.path != "/" else { return nil }
+            guard url.path != "/", only == nil || url.path == only else { return nil }
             let dev = (try? FileManager.default.attributesOfFileSystem(forPath: url.path))?[.systemNumber] as? Int
             let v = try? url.resourceValues(forKeys: Set(keys))
             let marker = Marker.read(at: url)

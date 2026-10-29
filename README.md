@@ -31,7 +31,9 @@ library onto players. Not a music player.
   script writes, so both agree). The device's queue is copied to it with rsync over ssh; Everything,
   Mirror (with the list of what it would remove, behind a confirmation) and Check are in the More menu.
   The device page also lists what it cannot play (Fix has the panel repair it in place), the albums
-  added since the last copy, and the copy history.
+  added since the last copy, the library albums not on the device (missing, partly there, or an older
+  version, each with Queue), and the copy history. The panel can't see the device, so the app sends it
+  the device's file list when the device is connected and after every copy.
 - **UI is labels only**: counts, names and controls. No hint lines, taglines or captions.
 
 All of it goes through the panel's JSON API, so it does what the web page does ([docs/PARITY.md](docs/PARITY.md)).

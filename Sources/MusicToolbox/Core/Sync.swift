@@ -94,6 +94,8 @@ final class DeviceSession {
     var issues: Api.Issues?
     var newAlbums: Api.NewAlbums?
     var syncs: Api.Syncs?
+    var missing: Api.NotOnDevice?
+    var listing = false
     var fixed: Int?
     var fixRun: String?
     var libraryBytes: Int64?
@@ -112,6 +114,7 @@ final class DeviceSession {
 
     private var task: Task<Void, Never>?
     private var started = Date()
+    private var listed = false
 
     init(_ volume: Volume) { self.volume = volume }
 
@@ -142,6 +145,7 @@ final class DeviceSession {
         if profile.hasQueue {
             newAlbums = try? await panel.queueNew(profile.id)
             syncs = try? await panel.syncs(profile.id)
+            if !listed && !listing { await list(panel) } else { missing = try? await panel.missing(profile.id) }
         }
         if let remote = Config.remote, let used = try? await remote.librarySize() { libraryBytes = used }
         await measure()
@@ -155,6 +159,64 @@ final class DeviceSession {
 
     private func refreshVolume() async {
         if let v = DeviceStore.scan().first(where: { $0.url == volume.url }) { volume = v }
+    }
+
+    // MARK: what's on the device
+
+    nonisolated static let audio: Set<String> = ["flac", "mp3", "m4a", "aac", "ogg", "oga", "opus", "wav", "aif", "aiff", "wv", "ape", "alac", "dsf", "wma"]
+    nonisolated static let mac = ProcessInfo.processInfo.hostName.split(separator: ".").first.map(String.init) ?? ""
+
+    /// Every music file in the device's music folder, with paths shaped like the library's. Nil when the
+    /// device is gone (unplugged mid-copy): an empty listing would tell the panel everything is missing.
+    nonisolated static func contents(_ volume: URL, _ root: URL) -> [(path: String, bytes: Int64)]? {
+        guard Marker.read(at: volume) != nil else { return nil }
+        let base = root.standardizedFileURL.pathComponents.count
+        guard let e = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey],
+                                                     options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { return nil }
+        var out: [(path: String, bytes: Int64)] = []
+        for case let u as URL in e where audio.contains(u.pathExtension.lowercased()) {
+            guard let v = try? u.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey]), v.isRegularFile == true else { continue }
+            out.append((u.standardizedFileURL.pathComponents.dropFirst(base).joined(separator: "/"), Int64(v.fileSize ?? 0)))
+        }
+        return Marker.read(at: volume) != nil ? out : nil
+    }
+
+    /// Tells the panel what the device holds (it can't see the device), then reads back what it lacks.
+    func sendListing() {
+        guard profile.hasQueue, !listing, let panel = Config.panel else { return }
+        listing = true
+        Task { await list(panel) }
+    }
+
+    private func list(_ panel: Panel) async {
+        listing = true
+        defer { listing = false }
+        let root = volume.url, music = volume.music, name = volume.title, device = profile.id
+        let (files, mac) = await Task.detached { (Self.contents(root, music), Self.mac) }.value
+        if let files, (try? await panel.sendContents(device, files: files, mac: mac, volume: name)) != nil { listed = true }
+        missing = try? await panel.missing(device)
+    }
+
+    /// Queues albums the device lacks; Undo takes them off the queue again.
+    func queueMissing(_ albums: [Api.NotOnDevice.Album]) {
+        guard let panel = Config.panel, profile.hasQueue, !albums.isEmpty else { return }
+        let device = profile.id
+        Task {
+            let added = (try? await panel.queueMissing(device, albums.map(\.id))) ?? []
+            await reloadLists(panel, device)
+            if !added.isEmpty {
+                Nav.shared.notify(albums.count == 1 ? "Queued \(albums[0].album.album)" : "Queued \(albums.count) albums") { [self] in
+                    try? await panel.unqueue(device, added)
+                    await reloadLists(panel, device)
+                }
+            }
+        }
+    }
+
+    private func reloadLists(_ panel: Panel, _ device: String) async {
+        if let q = try? await panel.queue(device) { items = q.map(Item.init) }
+        newAlbums = try? await panel.queueNew(device)
+        missing = try? await panel.missing(device)
     }
 
     nonisolated static func directorySize(_ url: URL) -> Int64 {
@@ -357,26 +419,27 @@ final class DeviceSession {
         history.insert(Summary(mode: m, result: result, copied: n, removed: removed, seconds: secs), at: 0)
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        let mac = await Task.detached { Self.mac }.value
         await panel?.syncLog(["ts": f.string(from: Date()), "mode": m.rawValue, "result": result, "copied": n, "removed": removed,
-                              "seconds": secs, "mac": ProcessInfo.processInfo.hostName.split(separator: ".").first.map(String.init) ?? "",
-                              "rsync": "3", "app": "music-toolbox", "detail": String(detail.prefix(300))])
+                              "seconds": secs, "mac": mac, "rsync": "3", "app": "music-toolbox", "detail": String(detail.prefix(300))])
         if m == .queue || result == "finished" { items.removeAll { copied.contains($0.entry) } }
-        if profile.hasQueue { syncs = try? await panel?.syncs(profile.id) }
+        if profile.hasQueue, let panel {
+            syncs = try? await panel.syncs(profile.id)
+            await list(panel)
+        }
     }
 
     /// Queues every album added since the last copy.
     func queueNewAlbums() {
         guard let panel = Config.panel, profile.hasQueue else { return }
+        let device = profile.id
         Task {
-            let added = (try? await panel.queueAllNew(profile.id)) ?? []
-            if let q = try? await panel.queue(profile.id) { items = q.map(Item.init) }
-            newAlbums = try? await panel.queueNew(profile.id)
-            let device = profile.id
+            let added = (try? await panel.queueAllNew(device)) ?? []
+            await reloadLists(panel, device)
             if !added.isEmpty {
                 Nav.shared.notify("Queued \(added.count) albums") { [self] in
                     try? await panel.unqueue(device, added)
-                    if let q = try? await panel.queue(device) { items = q.map(Item.init) }
-                    newAlbums = try? await panel.queueNew(device)
+                    await reloadLists(panel, device)
                 }
             }
         }
@@ -456,7 +519,7 @@ final class DeviceSession {
             } catch is CancellationError {} catch { self.error = Self.describe(error) }
             self.fraction = nil
             self.issues = try? await panel.issues(self.profile.id)
-            if self.profile.hasQueue, let q = try? await panel.queue(self.profile.id) { self.items = q.map(Item.init) }
+            if self.profile.hasQueue { await self.reloadLists(panel, self.profile.id) }
         }
     }
 

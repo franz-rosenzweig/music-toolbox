@@ -6,7 +6,7 @@ panel's password, UTF-8 library-relative paths exactly as stored. The app uses:
 | Screen | Calls |
 | --- | --- |
 | Upload | `POST /upload/start` (with a `sha256` per file), `PUT /upload/{batch}/{i}?offset=`, `GET /upload/{batch}`, `POST /upload/{batch}/finish`, `GET /api/jobs/{id}`, `DELETE /upload/{batch}` |
-| Devices | `GET /api/devices`, `GET /api/devices/{id}/queue`, `…/queue/new`, `…/syncs`, `POST …/queue/complete`, `DELETE …/queue`, `GET …/issues`, `POST …/fix`, `POST /api/sync-log` |
+| Devices | `GET /api/devices`, `GET /api/devices/{id}/queue`, `…/queue/new`, `…/syncs`, `POST …/queue/complete`, `DELETE …/queue`, `GET …/issues`, `POST …/fix`, `POST /api/sync-log`, `POST …/contents` (on connect and after every copy), `GET …/missing`, `POST …/missing/queue` |
 | Needs You | `GET /api/needs`, `POST …/later`, `GET /api/needs/imports/{fid}/{gid}` and `…/candidates`, `POST …/search`, `…/apply`, `…/asis`, `GET/POST /api/names` |
 | History | `GET /api/history`, `GET /api/history/{run}`, `…/undo-preview`, `POST …/undo` |
 | Library health, covers | `GET/POST /api/health/{split,variants,multi,unknown}`, `POST /api/health/ignore`, `POST /api/health/unignore`, `GET /api/health/ignored`, `GET /api/health/findings`, `GET /api/covers`, `…/candidates`, `POST /api/covers/{album}` |

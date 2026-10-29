@@ -10,6 +10,7 @@ endpoint before it can have a screen. "Now" means the app already does it.
 | Device: queue, copy, mirror, check, sync log | Device |
 | Issues for a device, fix in place | Device, Issues |
 | Added since the last copy, copy history | Device |
+| Not on the DAP (missing, partial, changed), Queue, Queue all | Device, Not on the Device (the app sends the listing) |
 | Send an album to the device | Library, album |
 | Needs you: the list, Later | Needs You |
 | Import review, MusicBrainz candidates and search, accept | Needs You, an import |

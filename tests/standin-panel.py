@@ -13,7 +13,7 @@ folders the test made, with test credentials only (test / test-password).
 --samples      the panel's docs/api-samples.json: its recorded answers are replayed for history, covers, health and the device's added albums and copy history
 --corrupt-once flip one byte of the first checksummed file before the check at finish (the app must send it again)
 ROOT/stage holds batches, ROOT/inbox the finished folders, ROOT/log.txt every request."""
-import base64, hashlib, json, math, os, re, secrets, shutil, struct, sys, threading, time
+import base64, hashlib, json, math, os, re, secrets, shutil, struct, sys, threading, time, unicodedata
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlsplit
 
@@ -73,7 +73,7 @@ def sample(prefix, default=None):
 
 
 lock = threading.Lock()
-state = {'ignored': set(), 'lookups': {}, 'english': [], 'corrupted': False, 'dropped': False, 'jobs': {}, 'next_job': 1, 'fixed': set()}
+state = {'ignored': set(), 'lookups': {}, 'english': [], 'corrupted': False, 'dropped': False, 'jobs': {}, 'next_job': 1, 'fixed': set(), 'listing': None}
 
 
 def log(line):
@@ -129,6 +129,24 @@ def fake_issues():
     _, tracks = library()
     flacs = [t for t in list(t for t in tracks.values() if t['format'] == 'flac')[:ISSUES] if t['path'] not in state['fixed']]
     return [{'path': t['path'], 'album_id': t['album_id'], 'bytes': t['bytes'], 'check': 'flac_blocksize', 'value': 16384, 'limit': 4608, 'fixable': True} for t in flacs]
+
+
+def not_on_device():
+    """The library albums the last listing lacks: missing (no track there), partial, changed (a size differs)."""
+    l = state['listing']
+    if not l: return {'as_of': None, 'mac': None, 'volume': None, 'files_on_device': 0, 'counts': {'missing': 0, 'partial': 0, 'changed': 0}, 'albums': []}
+    albums, tracks = library()
+    queued, out = set(read_queue()), []
+    for a in albums.values():
+        ts = [t for t in tracks.values() if t['album_id'] == a['id']]
+        gone = [t for t in ts if t['path'] not in l['files']]
+        changed = [t for t in ts if t['path'] in l['files'] and l['files'][t['path']] != t['bytes']]
+        status = 'missing' if len(gone) == len(ts) else 'partial' if gone else 'changed' if changed else None
+        if status:
+            out.append({**a, 'queued': a['folder'] in queued, 'attention': False, 'lyrics': {'synced': 0, 'plain': 0, 'instrumental': 0, 'none': a['tracks']},
+                        'status': status, 'missing_tracks': len(gone), 'changed_tracks': len(changed), 'entries': [a['folder']]})
+    counts = {k: sum(1 for a in out if a['status'] == k) for k in ('missing', 'partial', 'changed')}
+    return {'as_of': l['as_of'], 'mac': l['mac'], 'volume': l['volume'], 'files_on_device': len(l['files']), 'counts': counts, 'albums': out}
 
 
 # ---- uploads ---------------------------------------------------------------------------------------
@@ -240,6 +258,12 @@ class H(BaseHTTPRequestHandler):
         if m: return self.send(200, sample('GET /api/devices/{id}/queue/new'))
         m = re.match(r'^/api/devices/([\w-]+)/syncs$', path)
         if m: return self.send(200, sample('GET /api/devices/{id}/syncs'))
+        m = re.match(r'^/api/devices/([\w-]+)/missing$', path)
+        if m:
+            r = not_on_device()
+            st = (q.get('status') or [''])[0]
+            if st: r['albums'] = [a for a in r['albums'] if a['status'] == st]
+            return self.send(200, r)
         if path == '/api/names':
             return self.send(200, [{'kind': 'artist', 'name': HEB[0], 'suggest': 'Nir Knaan', 'why': 'known name', 'known': True, 'albums': [{'id': 'x1', 'title': HEB[1], 'artist': HEB[0]}], 'folders': [HEB[0] + '/' + HEB[1]]},
                                    {'kind': 'album', 'name': HEB[1], 'suggest': '', 'why': '', 'known': False, 'albums': [{'id': 'x1', 'title': HEB[1], 'artist': HEB[0]}], 'folders': []}])
@@ -450,6 +474,25 @@ class H(BaseHTTPRequestHandler):
             return self.send(200, {'id': body.get('id'), 'ignored': True})
         m = re.match(r'^/api/devices/([\w-]+)/queue/new$', path)
         if m: return self.send(200, sample('POST /api/devices/{id}/queue/new'))
+        m = re.match(r'^/api/devices/([\w-]+)/contents$', path)
+        if m:
+            body = self.json_body()
+            files = {unicodedata.normalize('NFC', f['path']): int(f.get('bytes') or 0) for f in body.get('files') or [] if f.get('path')}
+            state['listing'] = {'files': files, 'mac': body.get('mac'), 'volume': body.get('volume'), 'as_of': time.strftime('%Y-%m-%dT%H:%M:%S')}
+            log(f'contents files={len(files)} volume={body.get("volume")} mac={body.get("mac")}')
+            with open(os.path.join(root, 'contents.json'), 'w', encoding='utf-8') as f: json.dump(body, f, ensure_ascii=False)
+            return self.send(200, {'files': len(files), 'as_of': state['listing']['as_of']})
+        m = re.match(r'^/api/devices/([\w-]+)/missing/queue$', path)
+        if m:
+            body = self.json_body()
+            rows = not_on_device()['albums']
+            if body.get('status'): rows = [a for a in rows if a['status'] == body['status']]
+            if not body.get('all'): rows = [a for a in rows if a['id'] in (body.get('album_ids') or [])]
+            cur = read_queue()
+            add = [e for a in rows for e in a['entries'] if e not in cur]
+            write_queue(cur + add)
+            log(f'missing/queue {len(add)}')
+            return self.send(200, {'added': add})
         if path == '/api/sync-log':
             body = self.json_body()
             if body.get('result') not in ('finished', 'failed', 'cancelled'): return self.send(400, {'error': 'result must be finished, failed or cancelled'})
