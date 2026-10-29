@@ -100,9 +100,20 @@ extension Api {
         var extra: [String]?
         var penalties: [Penalty]?
         var needs: [NameRef]?
+        var catalognum: String?
+        var barcode: String?
+        var mediums: Int?
+        var mediumTracks: [Int]?
 
         var heading: String { [artist, album].compactMap { $0 }.joined(separator: " — ") }
-        var detail: String { [year.map(String.init), country, media, label].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ") }
+        /// "2022 · XE · 2 × CD (14+15) · Apple Records · 4538277 · 602445382774": what tells one edition from another
+        var detail: String {
+            var shape = media
+            if let n = mediums, n > 1 || mediumTracks != nil {
+                shape = "\(n) × \(media ?? "disc")" + (mediumTracks.map { " (" + $0.map(String.init).joined(separator: "+") + ")" } ?? "")
+            }
+            return [year.map(String.init), country, shape, label, catalognum, barcode].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+        }
     }
 
     struct Candidates: Decodable, Sendable {

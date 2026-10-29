@@ -16,6 +16,10 @@ library onto players. Not a music player.
   folder and carries DISCNUMBER/DISCTOTAL tags; the screen shows "Disc 2 of 2" and which discs are already in
   the folder, and keeps "Rip" as the main button until the set is complete, so one upload sends all of it.
   The disc is ejected when the rip is done (a switch next to the buttons).
+  "Find…" (on the Rip screen and in an import) searches MusicBrainz by whatever is printed on the
+  release: artist, album, year, country, label, catalog number, barcode, discs, tracks, format, or its link,
+  and shows each edition's discs, barcode and catalog number. When a set's other discs are tagged as a
+  different release, "Retag Them" gives them the chosen release's tags.
 - **When Connected** (Settings): the app comes to the front on the Rip screen when an audio CD goes in, and on
   the device page when a player is connected; each is a switch, and "Open at Login" starts the app at login so
   it is there to be shown. With either switch on, closing the window leaves the app running.

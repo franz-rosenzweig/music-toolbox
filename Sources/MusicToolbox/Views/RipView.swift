@@ -5,6 +5,7 @@ import AppKit
 struct RipView: View {
     @Bindable private var ripper = Ripper.shared
     @AppStorage("ejectWhenDone") private var ejectWhenDone = true
+    @State private var finding = false
 
     var body: some View {
         Group {
@@ -16,6 +17,12 @@ struct RipView: View {
         }
         .navigationTitle("Rip")
         .task { await ripper.scan() }
+        .sheet(isPresented: $finding) {
+            ReleaseFinder(fields: MBSearch.Fields(artist: ripper.albumArtist, album: ripper.album, year: ripper.year)) { link in
+                finding = false
+                Task { await ripper.use(link) }
+            } close: { finding = false }
+        }
     }
 
     private func content(_ disc: Disc) -> some View {
@@ -68,6 +75,7 @@ struct RipView: View {
                     if ripper.releases.isEmpty && ripper.activity != .looking {
                         Button("Look Up Again", systemImage: "arrow.clockwise") { Task { await ripper.lookup() } }.buttonStyle(.link)
                     }
+                    Button("Find…", systemImage: "magnifyingglass") { finding = true }.buttonStyle(.link).disabled(ripper.activity == .ripping)
                 }
             }
         }
@@ -124,8 +132,14 @@ struct RipView: View {
                     Button("Eject", systemImage: "eject") { Task { await ripper.eject() } }.disabled(ripper.activity == .ripping)
                 }
             }
+            if ripper.otherDiscsDiffer && ripper.activity != .ripping {
+                HStack {
+                    Label("Other discs: another release", systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                    Button("Retag Them") { Task { await ripper.retagOtherDiscs() } }.buttonStyle(.link)
+                }
+            }
             if !ripper.missingDiscs.isEmpty && ripper.activity != .ripping {
-                Label("Disc \(ripper.missingDiscs.map(String.init).joined(separator: ", ")) still to rip: upload when the set is complete", systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                Label("Disc \(ripper.missingDiscs.map(String.init).joined(separator: ", ")) to rip", systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
             }
             if let f = ripper.folder, ripper.items.allSatisfy({ $0.state == .done }) {
                 HStack(spacing: 8) {

@@ -123,6 +123,7 @@ struct ImportView: View {
     @State private var error: String?
     @State private var job = JobFollower()
     @State private var store = NeedsStore.shared
+    @State private var finding = false
 
     private var busy: Bool { job.running || job.active }
     private var candidate: Api.Candidate? { cands?.candidates?.first { $0.id == chosen } }
@@ -141,6 +142,14 @@ struct ImportView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .task(id: need.id) { await load() }
+        .sheet(isPresented: $finding) {
+            ReleaseFinder(fields: MBSearch.Fields(artist: album?.artist ?? "", album: album?.album ?? "", year: album?.year.map(String.init) ?? "",
+                                                 tracks: album.map { String($0.nTracks) } ?? "")) { link in
+                finding = false
+                query = link
+                Task { await search(); chosen = MBSearch.releaseID(in: link) ?? chosen }
+            } close: { finding = false }
+        }
     }
 
     // MARK: header
@@ -178,6 +187,7 @@ struct ImportView: View {
             HStack {
                 TextField("Artist - Album, or a release link", text: $query).textFieldStyle(.roundedBorder).onSubmit { Task { await search() } }
                 Button("Search") { Task { await search() } }.disabled(query.isEmpty || busy)
+                Button("Find…", systemImage: "magnifyingglass") { finding = true }.disabled(busy)
             }
             if let e = cands?.error { Label(e, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange) }
             if let list = cands?.candidates {

@@ -1,0 +1,398 @@
+{
+ "created": "2026-10-29T02:13:56.177Z",
+ "count": 4,
+ "offset": 0,
+ "releases": [
+  {
+   "id": "f68086ff-1861-4b58-93c6-f71891538faf",
+   "score": 100,
+   "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+   "packaging-id": "e724a489-a7e8-30a1-a17c-30dfd6831202",
+   "artist-credit-id": "c81491ca-a4b0-3bd7-92c0-8467809c8500",
+   "count": 2,
+   "title": "Revolver",
+   "status": "Official",
+   "packaging": "Gatefold Cover",
+   "text-representation": {
+    "language": "eng",
+    "script": "Latn"
+   },
+   "artist-credit": [
+    {
+     "name": "The Beatles",
+     "artist": {
+      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+      "name": "The Beatles",
+      "sort-name": "Beatles, The",
+      "disambiguation": "UK rock band, “The Fab Four”"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "72d15666-99a7-321e-b1f3-a3f8c09dff9f",
+    "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+    "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+    "title": "Revolver",
+    "primary-type": "Album"
+   },
+   "date": "2022-10-28",
+   "country": "XE",
+   "release-events": [
+    {
+     "date": "2022-10-28",
+     "area": {
+      "id": "89a675c2-3e37-3518-b83c-418bad59a85a",
+      "name": "Europe",
+      "sort-name": "Europe",
+      "iso-3166-1-codes": [
+       "XE"
+      ]
+     }
+    }
+   ],
+   "barcode": "602445382774",
+   "asin": "B0B7SK4117",
+   "label-info": [
+    {
+     "catalog-number": "453877",
+     "label": {
+      "id": "13a464dc-b9fd-4d16-a4f4-d4316f6a46c7",
+      "name": "Universal Music"
+     }
+    },
+    {
+     "catalog-number": "0060244538774",
+     "label": {
+      "id": "13a464dc-b9fd-4d16-a4f4-d4316f6a46c7",
+      "name": "Universal Music"
+     }
+    },
+    {
+     "catalog-number": "4538277",
+     "label": {
+      "id": "cf7fc5cf-e011-4ef4-b511-cd0188537910",
+      "name": "Apple Records"
+     }
+    },
+    {
+     "catalog-number": "00602445382774",
+     "label": {
+      "id": "cf7fc5cf-e011-4ef4-b511-cd0188537910",
+      "name": "Apple Records"
+     }
+    }
+   ],
+   "track-count": 29,
+   "media": [
+    {
+     "id": "5f4772b6-bed5-3e91-97d9-b19eda713383",
+     "format": "CD",
+     "disc-count": 1,
+     "track-count": 14
+    },
+    {
+     "id": "cb19d308-788b-323e-8672-49770ae4c70f",
+     "format": "CD",
+     "disc-count": 1,
+     "track-count": 15
+    }
+   ]
+  },
+  {
+   "id": "85e77c9c-7de1-4fd6-89d5-b3b6cf2bb643",
+   "score": 100,
+   "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+   "packaging-id": "c1668fc7-8944-4a00-bc3e-46e8d861d211",
+   "artist-credit-id": "c81491ca-a4b0-3bd7-92c0-8467809c8500",
+   "count": 5,
+   "title": "Revolver",
+   "status": "Official",
+   "disambiguation": "super deluxe",
+   "packaging": "Box",
+   "text-representation": {
+    "language": "eng",
+    "script": "Latn"
+   },
+   "artist-credit": [
+    {
+     "name": "The Beatles",
+     "artist": {
+      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+      "name": "The Beatles",
+      "sort-name": "Beatles, The",
+      "disambiguation": "UK rock band, “The Fab Four”"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "72d15666-99a7-321e-b1f3-a3f8c09dff9f",
+    "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+    "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+    "title": "Revolver",
+    "primary-type": "Album"
+   },
+   "date": "2022-10-28",
+   "country": "XW",
+   "release-events": [
+    {
+     "date": "2022-10-28",
+     "area": {
+      "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+      "name": "[Worldwide]",
+      "sort-name": "[Worldwide]",
+      "iso-3166-1-codes": [
+       "XW"
+      ]
+     }
+    }
+   ],
+   "barcode": "602445599417",
+   "label-info": [
+    {
+     "catalog-number": "4559941",
+     "label": {
+      "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+      "name": "Parlophone"
+     }
+    },
+    {
+     "catalog-number": "4559941",
+     "label": {
+      "id": "edaafb43-0124-4732-a2e3-f7a9936c8bd4",
+      "name": "Universal Music Group International"
+     }
+    },
+    {
+     "catalog-number": "4559941",
+     "label": {
+      "id": "cf7fc5cf-e011-4ef4-b511-cd0188537910",
+      "name": "Apple Records"
+     }
+    },
+    {
+     "catalog-number": "0602445599417",
+     "label": {
+      "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+      "name": "Parlophone"
+     }
+    },
+    {
+     "catalog-number": "0602445599417",
+     "label": {
+      "id": "edaafb43-0124-4732-a2e3-f7a9936c8bd4",
+      "name": "Universal Music Group International"
+     }
+    },
+    {
+     "catalog-number": "0602445599417",
+     "label": {
+      "id": "cf7fc5cf-e011-4ef4-b511-cd0188537910",
+      "name": "Apple Records"
+     }
+    }
+   ],
+   "track-count": 63,
+   "media": [
+    {
+     "id": "9b241375-a5d4-3412-b6a8-7223db4a6cd3",
+     "format": "CD",
+     "disc-count": 3,
+     "track-count": 14
+    },
+    {
+     "id": "396640d7-e8ea-38b8-a6e6-3a3f183df2d2",
+     "format": "CD",
+     "disc-count": 1,
+     "track-count": 14
+    },
+    {
+     "id": "f2cc2345-e10a-3783-abab-b08fdc144249",
+     "format": "CD",
+     "disc-count": 2,
+     "track-count": 17
+    },
+    {
+     "id": "31603aa1-437e-36c5-ae80-8e818933578f",
+     "format": "CD",
+     "disc-count": 2,
+     "track-count": 14
+    },
+    {
+     "id": "57506de0-5d7a-38a0-9232-9291022ddeda",
+     "format": "CD",
+     "disc-count": 2,
+     "track-count": 4
+    }
+   ]
+  },
+  {
+   "id": "636ece6b-b389-436a-a761-8d6e8116f9cd",
+   "score": 100,
+   "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+   "artist-credit-id": "c81491ca-a4b0-3bd7-92c0-8467809c8500",
+   "count": 1,
+   "title": "Revolver",
+   "status": "Official",
+   "disambiguation": "2022 mix",
+   "artist-credit": [
+    {
+     "name": "The Beatles",
+     "artist": {
+      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+      "name": "The Beatles",
+      "sort-name": "Beatles, The",
+      "disambiguation": "UK rock band, “The Fab Four”"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "72d15666-99a7-321e-b1f3-a3f8c09dff9f",
+    "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+    "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+    "title": "Revolver",
+    "primary-type": "Album"
+   },
+   "date": "2022-10-28",
+   "country": "XW",
+   "release-events": [
+    {
+     "date": "2022-10-28",
+     "area": {
+      "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+      "name": "[Worldwide]",
+      "sort-name": "[Worldwide]",
+      "iso-3166-1-codes": [
+       "XW"
+      ]
+     }
+    }
+   ],
+   "barcode": "602445599684",
+   "label-info": [
+    {
+     "catalog-number": "0602445599684",
+     "label": {
+      "id": "edaafb43-0124-4732-a2e3-f7a9936c8bd4",
+      "name": "Universal Music Group International"
+     }
+    },
+    {
+     "catalog-number": "0602445599684",
+     "label": {
+      "id": "cf7fc5cf-e011-4ef4-b511-cd0188537910",
+      "name": "Apple Records"
+     }
+    }
+   ],
+   "track-count": 14,
+   "media": [
+    {
+     "id": "f5bc6095-54d8-3985-92e9-1ee317ac9e36",
+     "format": "CD",
+     "disc-count": 1,
+     "track-count": 14
+    }
+   ]
+  },
+  {
+   "id": "09370304-959d-4817-9f28-710a1e1d0ef0",
+   "score": 100,
+   "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+   "artist-credit-id": "c81491ca-a4b0-3bd7-92c0-8467809c8500",
+   "count": 1,
+   "title": "Revolver",
+   "status": "Official",
+   "text-representation": {
+    "language": "eng",
+    "script": "Latn"
+   },
+   "artist-credit": [
+    {
+     "name": "The Beatles",
+     "artist": {
+      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+      "name": "The Beatles",
+      "sort-name": "Beatles, The",
+      "disambiguation": "UK rock band, “The Fab Four”"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "72d15666-99a7-321e-b1f3-a3f8c09dff9f",
+    "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+    "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+    "title": "Revolver",
+    "primary-type": "Album"
+   },
+   "date": "2022-10-28",
+   "country": "US",
+   "release-events": [
+    {
+     "date": "2022-10-28",
+     "area": {
+      "id": "489ce91b-6658-3307-9877-795b68554c98",
+      "name": "United States",
+      "sort-name": "United States",
+      "iso-3166-1-codes": [
+       "US"
+      ]
+     }
+    }
+   ],
+   "barcode": "602448278470",
+   "label-info": [
+    {
+     "catalog-number": "B0036541-01",
+     "label": {
+      "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+      "name": "Capitol Records"
+     }
+    },
+    {
+     "catalog-number": "B0036541-01",
+     "label": {
+      "id": "93ba13c1-5d3f-4618-a8e7-17aeffff1da6",
+      "name": "UMe"
+     }
+    },
+    {
+     "catalog-number": "B0036541-01",
+     "label": {
+      "id": "cf7fc5cf-e011-4ef4-b511-cd0188537910",
+      "name": "Apple Records"
+     }
+    },
+    {
+     "catalog-number": "4559969",
+     "label": {
+      "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+      "name": "Parlophone"
+     }
+    },
+    {
+     "catalog-number": "PC 7009",
+     "label": {
+      "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+      "name": "Parlophone"
+     }
+    },
+    {
+     "catalog-number": "B0036541-01",
+     "label": {
+      "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+      "name": "Parlophone"
+     }
+    }
+   ],
+   "track-count": 14,
+   "media": [
+    {
+     "id": "82910e97-43c5-4ab7-89ed-0c865dfa9618",
+     "format": "12\" Vinyl",
+     "disc-count": 0,
+     "track-count": 14
+    }
+   ]
+  }
+ ]
+}

@@ -92,6 +92,52 @@ enum SelfTest {
             check(rp.discCount == 1 && rp.missingDiscs.isEmpty, "a single disc has nothing to wait for")
             rp.frozen = false
         }
+        // finding a release by what is printed on it
+        let q = MBSearch.query(MBSearch.Fields(artist: "The Beatles", album: "Revolver", year: "2022", barcode: "6 02445 38277 4", tracks: "29"))
+        check(q == "artist:\"The Beatles\" AND release:\"Revolver\" AND date:2022 AND barcode:602445382774 AND tracks:29", "the search query: \(q)")
+        check(MBSearch.releaseID(in: "https://musicbrainz.org/release/f68086ff-1861-4b58-93c6-f71891538faf") == "f68086ff-1861-4b58-93c6-f71891538faf"
+              && MBSearch.releaseID(in: "F68086FF-1861-4B58-93C6-F71891538FAF") != nil
+              && MBSearch.releaseID(in: "https://musicbrainz.org/artist/b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d") == nil, "a release link or ID is recognised, an artist link is not")
+        if let sd = try? Data(contentsOf: fixtures.appendingPathComponent("musicbrainz-search-revolver-2022.json")) {
+            let found = MBSearch.parse(sd)
+            let mine = found.first { $0.id.hasPrefix("f68086ff") }
+            check(found.count >= 4 && mine?.shape == "2 × CD (14+15)" && mine?.barcode == "602445382774", "search answers parse: \(found.count) editions, yours \(mine?.shape ?? "-")")
+        } else { check(false, "the search fixture") }
+        do {
+            let live = try await MBSearch.search(MBSearch.Fields(artist: "The Beatles", album: "Revolver", tracks: "29"))
+            check(live.first?.id.hasPrefix("f68086ff") == true, "MusicBrainz finds the 2-CD edition by artist, album and 29 tracks (\(live.count) found)")
+            guard var rel = try await MusicBrainz.release("https://musicbrainz.org/release/f68086ff-1861-4b58-93c6-f71891538faf", disc: nil) else { throw RemoteError("no release") }
+            check(rel.media == 2 && rel.shape == "2 × CD (14+15)" && rel.allMedia[1]?.first?.title == "Taxman" && rel.allMedia[2]?.count == 15, "its tracks by disc: \(rel.summary)")
+            // retagging disc 1 of a set to the release disc 2 is tagged with
+            let tmp = out.appendingPathComponent("retag", isDirectory: true)
+            try? FileManager.default.removeItem(at: tmp)
+            UserDefaults.standard.set(tmp.path, forKey: "ripsFolder")
+            let rp = Ripper.shared
+            rp.frozen = true
+            rp.disc = disc
+            rp.albumArtist = "The Beatles"; rp.album = "Revolver"
+            guard let dir = rp.destination, let flac = Ripper.flac(), let metaflac = Ripper.metaflac() else { throw RemoteError("no folder or flac") }
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            var wav = Data("RIFF".utf8); func le32(_ v: UInt32) { withUnsafeBytes(of: v.littleEndian) { wav.append(contentsOf: $0) } }; func le16(_ v: UInt16) { withUnsafeBytes(of: v.littleEndian) { wav.append(contentsOf: $0) } }
+            le32(36 + 17640); wav.append(Data("WAVEfmt ".utf8)); le32(16); le16(1); le16(2); le32(44100); le32(176400); le16(4); le16(16); wav.append(Data("data".utf8)); le32(17640); wav.append(Data(count: 17640))
+            let w = tmp.appendingPathComponent("t.wav"); try wav.write(to: w)
+            for n in 1...2 {
+                let f = dir.appendingPathComponent("1-0\(n) Wrong.flac")
+                _ = try await Proc.run(flac, ["-s", "-f", "-o", f.path, w.path])
+                _ = try await Proc.run(metaflac, ["--import-tags-from=-", f.path], input: Data("TITLE=Wrong\nDISCNUMBER=1\nTRACKNUMBER=\(n)\nMUSICBRAINZ_ALBUMID=85e77c9c-7de1-4fd6-89d5-b3b6cf2bb643\nDISCID=keepme\n".utf8))
+            }
+            rel.medium = 2
+            rp.releases = [rel]; rp.chosen = 0
+            await rp.refreshRipped()
+            check(rp.rippedDiscs == [1] && rp.otherDiscsDiffer, "disc 1 in the folder carries another release (\(rp.folderRelease ?? "-"))")
+            await rp.retagOtherDiscs()
+            let t = try await Proc.run(metaflac, ["--export-tags-to=-", dir.appendingPathComponent("1-02 Wrong.flac").path]).text
+            check(t.contains("TITLE=Eleanor Rigby") && t.contains("MUSICBRAINZ_ALBUMID=f68086ff-1861-4b58-93c6-f71891538faf") && t.contains("DISCID=keepme") && t.contains("DISCTOTAL=2") && !t.contains("85e77c9c"),
+                  "Retag gives disc 1 the chosen release's titles and IDs, and keeps its disc ID")
+            check(!rp.otherDiscsDiffer, "after which the discs agree")
+            rp.releases = []; rp.disc = nil; rp.frozen = false
+            UserDefaults.standard.removeObject(forKey: "ripsFolder")
+        } catch { check(false, "MusicBrainz search and retag: \(error)") }
         // a disc or a player coming in shows the app on it, unless that is switched off
         Nav.shared.place = .upload
         Nav.shared.arrive(.rip)
@@ -150,7 +196,7 @@ enum SelfTest {
         }
         if let i = decode("GET /api/devices/hifi-walker-h2/issues?scope=library&limit=2 (the zero", Api.Issues.self) { check(i.total == 0 && i.checked > 1000, "issues, zero case: \(i.checked) checked") }
         if let i = decode("GET /api/devices/{id}/issues?scope=library&limit=2 (with issues", Api.Issues.self) {
-            check(i.total > 0 && !i.issues.isEmpty && i.issues[0].value != nil && i.issues[0].limit != nil, "issues with hits: \(i.total), \(i.counts)")
+            check(i.total > 0 && !i.issues.isEmpty && i.issues.first?.value != nil && i.issues.first?.limit != nil, "issues with hits: \(i.total), \(i.counts)")
         }
         if let l = decode("one issue of each check type", [Api.Issue].self) {
             check(Set(l.map(\.check)) == ["flac_blocksize", "sample_rate", "bit_depth", "format"] || l.count >= 3, "one issue of each check decodes (\(l.map { "\($0.check)=\($0.value?.text ?? "")>\($0.limit?.text ?? "")" }))")
@@ -202,12 +248,16 @@ enum SelfTest {
             check(c.status == "done" && c.candidates?.first?.tracks?.isEmpty == false && c.candidates?.first?.penalties != nil, "candidates: \(c.candidates?.count ?? 0), best \(c.candidates?.first?.heading ?? "-") \(Int((c.candidates?.first?.score ?? 0) * 100))%")
         }
         if let c = decode("POST /api/needs/imports/{fid}/{gid}/search", Api.Candidates.self) { check(c.running, "a search starts a lookup") }
+        if let c = decode("GET /api/needs/imports/{fid}/{gid}/candidates (after a search by edition", Api.Candidates.self) {
+            let first = c.candidates?.first
+            check(first?.mediumTracks != nil && first?.detail.contains("×") == true, "candidates by edition say their discs and numbers: \(first?.detail ?? "-")")
+        }
         if let r = decode("POST /api/needs/imports/{fid}/{gid}/apply\u{1}".replacingOccurrences(of: "\u{1}", with: ""), Api.JobRef.self) { check(r.job > 0, "apply: job \(r.job)") }
         if let r = decode("POST /api/needs/imports/{fid}/{gid}/asis\u{1}".replacingOccurrences(of: "\u{1}", with: ""), Api.AsIs.self) { check(r.job > 0 && r.folder != nil && r.queuedForDap == true, "as-is: \(r.folder ?? "-")") }
         for prefix in ["POST /api/needs/imports/{fid}/{gid}/asis (English names missing", "POST /api/needs/imports/{fid}/{gid}/apply (English names missing"] {
             if let (c, d) = entry(prefix), case .refused(let m) = Panel.failure(c, d) { check(m.contains("English"), "a 400 names what is missing: “\(m.prefix(40))…”") } else { check(false, prefix) }
         }
-        if let n = decode("GET /api/names", [Api.NameNeed].self) { check(!n.isEmpty && n.allSatisfy { !$0.name.isEmpty }, "names: \(n.count), first \(n[0].name) → \(n[0].suggest ?? "")") }
+        if let n = decode("GET /api/names", [Api.NameNeed].self) { check(n.allSatisfy { !$0.name.isEmpty }, "names (the live library has none left): \(n.count), first \(n.first?.name ?? "-") → \(n.first?.suggest ?? "")") }
         if let (c, d) = entry("POST /api/needs/{id}/later"), c == 200, Panel.object(d)["later"] as? Bool != nil { check(true, "later answers its state") } else { check(false, "later") }
         for k in ["GET /api/jobs/{id} (an import from MusicBrainz, finished", "GET /api/jobs/{id} (an as-is import, finished"] {
             if let j = job(k) { check(j.done && j.run != nil && (j.result["albums"] as? [[String: Any]])?.first?["status"] as? String == "imported", "job: \(j.kind) imported, run \(j.run ?? "-")") }
@@ -217,7 +267,7 @@ enum SelfTest {
         if let h = decode("GET /api/history?limit=3", Api.History.self) { check(!h.runs.isEmpty && h.total >= h.runs.count && h.runs.allSatisfy { !$0.title.isEmpty && !$0.when.isEmpty }, "history: \(h.runs.count) runs of \(h.total), next \(h.next ?? "-")") }
         if let h = decode("GET /api/history?kind=audio", Api.History.self) { check(h.runs.allSatisfy { $0.kind == "audio" || ($0.kinds ?? []).contains("audio") }, "history, only audio: \(h.runs.count)") }
         if let h = decode("GET /api/history (the sandbox after three imports", Api.History.self) { check(!h.runs.isEmpty, "history of imports: \(h.runs.map(\.title).prefix(2))") }
-        if let d = decode("GET /api/history/{run} (a tag run", Api.RunDetail.self) { check(!d.changes.isEmpty && d.changes[0].rows.first?.field != nil, "a run's changes: \(d.changes.count) files, \(d.changes[0].rows.first?.field ?? "-")") }
+        if let d = decode("GET /api/history/{run} (a tag run", Api.RunDetail.self) { check(!d.changes.isEmpty && d.changes[0].rows.first?.field != nil, "a run's changes: \(d.changes.count) files, \(d.changes.first?.rows.first?.field ?? "-")") }
         if let d = decode("GET /api/history/{run}\u{2}".replacingOccurrences(of: "\u{2}", with: ""), Api.RunDetail.self) { check(!d.changes.isEmpty, "an audio run's changes: \(d.changes.count)") }
         for k in ["GET /api/history/{run}/undo-preview\u{2}", "GET /api/history/{run}/undo-preview (a tag run", "GET /api/history/{run}/undo-preview (already undone", "GET /api/history/{run}/undo-preview (an as-is import", "GET /api/history/{run}/undo-preview (pasted lyrics"] {
             if let u = decode(k.replacingOccurrences(of: "\u{2}", with: ""), Api.UndoPreview.self) { check(!u.labels.isEmpty, "undo preview “\(k.dropFirst(33).prefix(22))”: \(u.canUndo ? u.labels.joined(separator: ", ") : (u.reason ?? "cannot"))") }

@@ -104,9 +104,18 @@ struct MBRelease: Identifiable, Hashable, Sendable {
     var medium: Int
     var media: Int
     var tracks: [Track]
+    var formats: [String] = []
+    var trackCounts: [Int] = []
+    /// every medium's tracks, by medium position, for retagging the other discs of a set
+    var allMedia: [Int: [Track]] = [:]
 
     var year: String { String((date ?? "").prefix(4)) }
-    var summary: String { [title, country, date.map { String($0.prefix(4)) }, "\(tracks.count) tracks"].compactMap { $0 }.joined(separator: " · ") }
+    /// "2 × CD (14+15)": what tells one edition from another
+    var shape: String {
+        let f = Set(formats).count == 1 ? formats[0] : (formats.isEmpty ? "" : "mixed")
+        return "\(media) × \(f.isEmpty ? "disc" : f)" + (trackCounts.isEmpty ? "" : " (" + trackCounts.map(String.init).joined(separator: "+") + ")")
+    }
+    var summary: String { [title, date.map { String($0.prefix(4)) }, country, shape, barcode].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ") }
 }
 
 enum MusicBrainz {
@@ -124,20 +133,25 @@ enum MusicBrainz {
             // the medium this disc is: the one that lists its ID, else the first with the same number of tracks
             let index = media.firstIndex { ($0["discs"] as? [[String: Any]])?.contains { $0["id"] as? String == discID } == true }
                 ?? media.firstIndex { ($0["track-count"] as? Int) == trackCount } ?? 0
-            let m = media[index]
-            let tracks: [MBRelease.Track] = (m["tracks"] as? [[String: Any]] ?? []).enumerated().map { i, t in
-                let rec = t["recording"] as? [String: Any]
-                let (artist, ids) = credit(t["artist-credit"] ?? rec?["artist-credit"])
-                return MBRelease.Track(number: Int(t["position"] as? Int ?? Int(t["number"] as? String ?? "") ?? i + 1), title: t["title"] as? String ?? rec?["title"] as? String ?? "Track \(i + 1)",
-                                       artist: artist, artistIDs: ids, recordingID: rec?["id"] as? String, trackID: t["id"] as? String, length: t["length"] as? Int ?? rec?["length"] as? Int)
+            func tracksOf(_ m: [String: Any]) -> [MBRelease.Track] {
+                (m["tracks"] as? [[String: Any]] ?? []).enumerated().map { i, t in
+                    let rec = t["recording"] as? [String: Any]
+                    let (artist, ids) = credit(t["artist-credit"] ?? rec?["artist-credit"])
+                    return MBRelease.Track(number: Int(t["position"] as? Int ?? Int(t["number"] as? String ?? "") ?? i + 1), title: t["title"] as? String ?? rec?["title"] as? String ?? "Track \(i + 1)",
+                                           artist: artist, artistIDs: ids, recordingID: rec?["id"] as? String, trackID: t["id"] as? String, length: t["length"] as? Int ?? rec?["length"] as? Int)
+                }
             }
+            let tracks = tracksOf(media[index])
+            var all: [Int: [MBRelease.Track]] = [:]
+            for (i, m) in media.enumerated() { all[(m["position"] as? Int) ?? i + 1] = tracksOf(m) }
             let (artist, ids) = credit(r["artist-credit"])
             let label = ((r["label-info"] as? [[String: Any]])?.first?["label"] as? [String: Any])?["name"] as? String
             let catalog = (r["label-info"] as? [[String: Any]])?.first?["catalog-number"] as? String
             let cover = (r["cover-art-archive"] as? [String: Any])?["front"] as? Bool ?? false
             return MBRelease(id: id, title: title, artist: artist, artistIDs: ids, date: r["date"] as? String, country: r["country"] as? String,
                              label: label == "[no label]" ? nil : label, catalog: catalog, barcode: r["barcode"] as? String,
-                             releaseGroupID: (r["release-group"] as? [String: Any])?["id"] as? String, hasCover: cover, medium: index + 1, media: media.count, tracks: tracks)
+                             releaseGroupID: (r["release-group"] as? [String: Any])?["id"] as? String, hasCover: cover, medium: index + 1, media: media.count, tracks: tracks,
+                             formats: media.map { $0["format"] as? String ?? "" }, trackCounts: media.map { $0["track-count"] as? Int ?? 0 }, allMedia: all)
         }
     }
 
@@ -164,6 +178,15 @@ enum MusicBrainz {
             if !r.isEmpty { return r }
         }
         return []
+    }
+
+    /// One release by its ID (or a musicbrainz.org/release/… link), with this disc's medium picked out.
+    static func release(_ idOrLink: String, disc: Disc?) async throws -> MBRelease? {
+        guard let id = MBSearch.releaseID(in: idOrLink) else { return nil }
+        let (data, status) = try await MBSearch.get("https://musicbrainz.org/ws/2/release/\(id)?inc=artist-credits+recordings+release-groups+labels&fmt=json")
+        guard status == 200, let r = try? JSONSerialization.jsonObject(with: data) else { throw RemoteError("MusicBrainz answered \(status)") }
+        let wrapped = try JSONSerialization.data(withJSONObject: ["releases": [r]])
+        return parse(wrapped, discID: disc?.id ?? "", trackCount: disc?.tracks.count ?? 0).first
     }
 
     static func cover(_ release: String) async -> Data? {
@@ -273,6 +296,8 @@ final class Ripper {
             if releases.isEmpty { error = "Not on MusicBrainz"; return }
             error = nil
             await choose(0)
+            // a disc of a set whose other discs are already in the folder: keep to the release they carry
+            if let folderID = folderRelease, let i = releases.firstIndex(where: { $0.id == folderID }), i != chosen { await choose(i) }
         } catch { self.error = "Can’t reach MusicBrainz" }
     }
 
@@ -342,24 +367,80 @@ final class Ripper {
     var rippedDiscs: [Int] = []
 
     func refreshRipped() async {
-        guard let dir = destination, let metaflac = Self.metaflac() else { rippedDiscs = []; return }
-        let found = await Task.detached { () -> [Int] in
+        guard let dir = destination, let metaflac = Self.metaflac() else { rippedDiscs = []; folderRelease = nil; return }
+        let found = await Task.detached { () -> ([Int], [Int: String]) in
             let files = ((try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []).filter { $0.pathExtension == "flac" }
             var discs = Set<Int>()
+            var ids: [Int: String] = [:]
             for f in files {
                 let p = Process()
                 p.executableURL = URL(fileURLWithPath: metaflac)
-                p.arguments = ["--show-tag=DISCNUMBER", f.path]
+                p.arguments = ["--show-tag=DISCNUMBER", "--show-tag=MUSICBRAINZ_ALBUMID", f.path]
                 let pipe = Pipe()
                 p.standardOutput = pipe
                 try? p.run()
                 p.waitUntilExit()
                 let out = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-                if let n = Int(out.split(separator: "=").last?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") { discs.insert(n) }
+                var n: Int?, id: String?
+                for line in out.split(separator: "\n") {
+                    let kv = line.split(separator: "=", maxSplits: 1).map(String.init)
+                    guard kv.count == 2 else { continue }
+                    if kv[0].uppercased() == "DISCNUMBER" { n = Int(kv[1]) } else if kv[0].uppercased() == "MUSICBRAINZ_ALBUMID" { id = kv[1] }
+                }
+                if let n { discs.insert(n); if let id { ids[n] = id } }
             }
-            return discs.sorted()
+            return (discs.sorted(), ids)
         }.value
-        rippedDiscs = found
+        rippedDiscs = found.0
+        // the release the folder's other discs carry (this disc's own files, when re-ripped, don't count)
+        folderRelease = found.1.filter { $0.key != discNumber }.values.first
+    }
+
+    /// The release the other discs in the folder are tagged with, and whether it differs from the one chosen.
+    var folderRelease: String?
+    var otherDiscsDiffer: Bool { folderRelease != nil && release != nil && folderRelease != release?.id }
+
+    /// A release found by searching, or by its link: it goes to the top of the list and is chosen.
+    func use(_ idOrLink: String) async {
+        do {
+            guard let r = try await MusicBrainz.release(idOrLink, disc: disc) else { error = "Not a MusicBrainz release"; return }
+            releases.removeAll { $0.id == r.id }
+            releases.insert(r, at: 0)
+            error = nil
+            await choose(0)
+        } catch { self.error = (error as? RemoteError)?.detail ?? "Can’t reach MusicBrainz" }
+    }
+
+    /// Gives the other discs already in the folder this release's tags, track by track.
+    func retagOtherDiscs() async {
+        guard let r = release, let dir = destination, let metaflac = Self.metaflac() else { return }
+        let files = ((try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []).filter { $0.pathExtension == "flac" }
+        var changed = 0
+        for f in files {
+            let old = (try? await Proc.run(metaflac, ["--export-tags-to=-", f.path]))?.text ?? ""
+            func tag(_ k: String) -> String? { old.split(separator: "\n").first { $0.uppercased().hasPrefix(k + "=") }.map { String($0.dropFirst(k.count + 1)) } }
+            guard let dn = tag("DISCNUMBER").flatMap({ Int($0) }), dn != discNumber, let tn = tag("TRACKNUMBER").flatMap({ Int($0) }),
+                  let mt = r.allMedia[dn]?.first(where: { $0.number == tn }) else { continue }
+            var tags: [(String, String)] = [("TITLE", mt.title), ("ARTIST", mt.artist.isEmpty ? r.artist : mt.artist), ("ALBUM", r.title), ("ALBUMARTIST", r.artist),
+                                            ("TRACKNUMBER", String(tn)), ("TRACKTOTAL", String(r.allMedia[dn]?.count ?? 0)), ("DISCNUMBER", String(dn)), ("DISCTOTAL", String(r.media)),
+                                            ("MUSICBRAINZ_ALBUMID", r.id)]
+            if let d = r.date { tags.append(("DATE", d)) }
+            if let g = r.releaseGroupID { tags.append(("MUSICBRAINZ_RELEASEGROUPID", g)) }
+            if let l = r.label { tags.append(("LABEL", l)) }
+            if let c = r.catalog { tags.append(("CATALOGNUMBER", c)) }
+            if let b = r.barcode, !b.isEmpty { tags.append(("BARCODE", b)) }
+            if let c = r.country { tags.append(("RELEASECOUNTRY", c)) }
+            if let id = tag("DISCID") { tags.append(("DISCID", id)) }
+            for id in r.artistIDs { tags.append(("MUSICBRAINZ_ALBUMARTISTID", id)) }
+            if let id = mt.recordingID { tags.append(("MUSICBRAINZ_TRACKID", id)) }
+            if let id = mt.trackID { tags.append(("MUSICBRAINZ_RELEASETRACKID", id)) }
+            for id in mt.artistIDs { tags.append(("MUSICBRAINZ_ARTISTID", id)) }
+            let o = try? await Proc.run(metaflac, ["--remove-all-tags", "--no-utf8-convert", "--import-tags-from=-", f.path],
+                                        input: Data(tags.map { "\($0.0)=\($0.1.replacingOccurrences(of: "\n", with: " "))" }.joined(separator: "\n").appending("\n").utf8))
+            if o?.status == 0 { changed += 1 }
+        }
+        await refreshRipped()
+        Nav.shared.notify("Retagged \(changed) files of the other discs")
     }
 
     var discNumber: Int { release?.medium ?? 1 }
@@ -420,7 +501,7 @@ final class Ripper {
             var args = ["--no-utf8-convert", "--import-tags-from=-"]
             if let picture { args.append("--import-picture-from=\(picture)") }
             args.append(tmp.path)
-            let t = try await Proc.run(metaflac, args, input: Data(tags.map { "\($0.0)=\($0.1.replacingOccurrences(of: "\n", with: " "))" }.joined(separator: "\n").utf8))
+            let t = try await Proc.run(metaflac, args, input: Data(tags.map { "\($0.0)=\($0.1.replacingOccurrences(of: "\n", with: " "))" }.joined(separator: "\n").appending("\n").utf8))
             guard t.status == 0 else { items[i].state = .failed("tags"); throw RemoteError("Track \(it.track.number): \(t.errText.split(separator: "\n").first.map(String.init) ?? "tagging failed")") }
             let prefix = (r?.media ?? 1) > 1 ? "\(r?.medium ?? 1)-" : ""
             let final = dir.appendingPathComponent(String(format: "%@%02d %@.flac", prefix, it.track.number, Self.clean(it.title)))
