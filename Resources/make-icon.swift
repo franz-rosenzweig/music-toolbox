@@ -1,4 +1,5 @@
 // Draws Resources/AppIcon.icns: five bars on a blue squircle. Run: swift Resources/make-icon.swift
+// Resources/AppIcon.icon is the same drawing in layers, the one build.sh uses when Xcode is there.
 import AppKit
 
 let size: CGFloat = 1024
