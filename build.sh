@@ -24,7 +24,17 @@ swift build -c release -Xswiftc -file-prefix-map -Xswiftc "$PWD=/src" 2>&1 | gre
 rm -rf "$APP" && mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/release/MusicToolbox "$APP/Contents/MacOS/MusicToolbox"
 strip -S "$APP/Contents/MacOS/MusicToolbox"
-cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+# The icon, layered as Icon Composer makes them (Resources/AppIcon.icon: the five bars over blue and teal; in the dark the bars take the colours),
+# so macOS draws it as it draws its own, light, dark, tinted and clear; actool also writes the .icns.
+# Without actool (it comes with Xcode), the plain Resources/AppIcon.icns from make-icon.swift.
+if xcrun -f actool >/dev/null 2>&1; then
+    # full paths: actool hands the work to a helper that may still be running from another build's folder
+    xcrun actool "$PWD/Resources/AppIcon.icon" --compile "${APP:a}/Contents/Resources" --app-icon AppIcon --platform macosx \
+        --minimum-deployment-target 26.0 --output-partial-info-plist "${OUT:a}/icon-partial.plist" >/dev/null
+    rm -f "$OUT/icon-partial.plist"
+else
+    cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+fi
 
 # Folders and music dropped on the Dock icon open the Upload screen. ATS is relaxed because the
 # server may be reached by its Tailscale address over plain http, which WireGuard already encrypts.
@@ -37,6 +47,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleDisplayName</key><string>$NAME</string>
   <key>CFBundleExecutable</key><string>MusicToolbox</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
+  <key>CFBundleIconName</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>CFBundleVersion</key><string>$BUILD</string>
