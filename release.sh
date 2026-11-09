@@ -28,6 +28,9 @@ source "$CONF"
 SIGN_KEYCHAIN=${SIGN_KEYCHAIN/#\~/$HOME}; SIGN_PASSWORD_FILE=${SIGN_PASSWORD_FILE/#\~/$HOME}
 REPO=franz-rosenzweig/music-toolbox
 say() { echo "release: $*"; }
+# Commits and tags that go public carry GitHub's noreply address, whatever
+# this machine's own git identity is (it may be a personal one)
+NOREPLY=(-c user.name=franz-rosenzweig -c user.email=159979406+franz-rosenzweig@users.noreply.github.com)
 fail() { echo "CHECK FAILED: $*" >&2; exit 1; }
 
 # what ships is what is on origin/main
@@ -83,13 +86,13 @@ cask "music-toolbox" do
   desc "Uploads music to a self-hosted library and loads it onto players"
   homepage "https://github.com/$REPO"
 
-  depends_on macos: ">= :tahoe"
+  depends_on macos: :tahoe
   depends_on formula: "rsync"
 
   app "Music Toolbox.app"
 
-  postflight do
-    system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{appdir}/Music Toolbox.app"]
+  postflight_steps do
+    run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{appdir}}/Music Toolbox.app"]
   end
 end
 CASK
@@ -97,7 +100,7 @@ if ! grep -q 'music-toolbox' "$WORK/tap/README.md"; then
   echo "| [music-toolbox](Casks/music-toolbox.rb) | [Music Toolbox](https://github.com/$REPO): uploads music to a self-hosted library and loads it onto players |" >> "$WORK/tap/README.md"
 fi
 git -C "$WORK/tap" add Casks/music-toolbox.rb README.md
-git -C "$WORK/tap" commit -q -m "music-toolbox $V"
-git -C "$WORK/tap" pull -q --rebase
+git -C "$WORK/tap" "${NOREPLY[@]}" commit -q -m "music-toolbox $V"
+git -C "$WORK/tap" "${NOREPLY[@]}" pull -q --rebase
 git -C "$WORK/tap" push -q
 say "released: $(gh release view "v$V" --repo $REPO --json url -q .url), and the cask is at $V"
