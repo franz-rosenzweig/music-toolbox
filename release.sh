@@ -83,13 +83,13 @@ cask "music-toolbox" do
   desc "Uploads music to a self-hosted library and loads it onto players"
   homepage "https://github.com/$REPO"
 
-  depends_on macos: ">= :tahoe"
+  depends_on macos: :tahoe
   depends_on formula: "rsync"
 
   app "Music Toolbox.app"
 
-  postflight do
-    system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{appdir}/Music Toolbox.app"]
+  postflight_steps do
+    run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{appdir}}/Music Toolbox.app"]
   end
 end
 CASK
