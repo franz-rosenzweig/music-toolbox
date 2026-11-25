@@ -87,7 +87,7 @@ hdiutil attach "$DISK" >/dev/null
 VOL=/Volumes/MTTESTDAP
 cleanup() { [[ -n ${SERVER_PID:-} ]] && kill $SERVER_PID 2>/dev/null; hdiutil detach "$VOL" -force >/dev/null 2>&1 || true; }
 trap cleanup EXIT
-printf '# dap-sync target marker\nmarked=2026-10-26 12:00:00\nmusicdir=\nprofile=hifi-walker-h2\n' > "$VOL/.dap-sync-target"
+printf '# dap-sync target marker\nmarked=2026-10-26 12:00:00\nmusicdir=\nprofile=hifi-walker-h2\nselftest=1\n' > "$VOL/.dap-sync-target"
 mkdir -p "$VOL/.rockbox" "$VOL/Playlists"; echo "rockbox settings" > "$VOL/.rockbox/config.cfg"; echo "#EXTM3U" > "$VOL/Playlists/x.m3u"; echo "device settings" > "$VOL/settings.txt"
 
 PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1])')
@@ -141,9 +141,11 @@ PY
 import json, sys
 rows = [json.loads(l) for l in open(sys.argv[1])]
 modes = [r["mode"] for r in rows]
-assert modes == ["queue", "mirror"], modes
-assert all(r["result"] == "finished" and isinstance(r["copied"], int) and isinstance(r["seconds"], int) for r in rows), rows
-assert rows[0]["copied"] >= 5, rows[0]
+assert modes == ["queue", "queue", "mirror"], modes
+assert [r["result"] for r in rows] == ["cancelled", "finished", "finished"], rows
+assert all(isinstance(r["copied"], int) and isinstance(r["seconds"], int) for r in rows), rows
+assert "no bytes moved" in rows[0]["detail"] and " · at " in rows[0]["detail"] and "rsync" in rows[0]["detail"], rows[0]
+assert rows[1]["copied"] >= 5, rows[1]
 PY
 else
   # --- one small album from the real library, onto the pretend player

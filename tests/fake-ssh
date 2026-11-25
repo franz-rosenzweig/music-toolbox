@@ -5,4 +5,6 @@ PATH="$(cd "$(dirname "$0")" && pwd)/bin:$PATH"
 while [ "$1" = "-o" ]; do shift 2; done
 shift
 if [ $# -eq 1 ]; then exec /bin/sh -c "$1"; fi
+# a network that has gone quiet: rsync's server end starts this many seconds late
+[ -n "${FAKE_SSH_STALL:-}" ] && sleep "$FAKE_SSH_STALL"
 exec "$@"

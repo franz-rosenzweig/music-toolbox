@@ -164,6 +164,8 @@ final class DeviceStore {
             let dev = (try? FileManager.default.attributesOfFileSystem(forPath: url.path))?[.systemNumber] as? Int
             let v = try? url.resourceValues(forKeys: Set(keys))
             let marker = Marker.read(at: url)
+            // the self-test's pretend player is not a player to any other copy of the app
+            if marker?.extra.contains("selftest=1") == true, ProcessInfo.processInfo.environment["MUSIC_SELFTEST"] == nil { return nil }
             if marker == nil, dev == rootDev || v?.volumeIsInternal == true { return nil }
             // an audio CD is for the Rip screen, not a place to copy music to
             if marker == nil, FileManager.default.fileExists(atPath: url.appendingPathComponent(".TOC.plist").path) { return nil }

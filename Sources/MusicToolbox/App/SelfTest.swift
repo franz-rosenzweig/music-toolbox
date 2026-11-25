@@ -637,9 +637,31 @@ enum SelfTest {
             s.load()
             _ = await until(30, { !s.busy })
         }
+        // a copy that stalls and is cancelled leaves its story: a note in the panel's log and a full log here
+        setenv("FAKE_SSH_STALL", "4", 1)
         s.copyQueue()
-        check(await until(120, { !s.busy }), "the copy ends")
+        check(await until(30, { s.items.contains { $0.state == .copying } }), "a stalled copy starts")
+        await pause(0.5)
+        s.cancel()
+        check(await until(30, { !s.busy }), "and stops when cancelled")
+        unsetenv("FAKE_SSH_STALL")
+        let kept = s.keptLog.flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
+        let said = kept.components(separatedBy: "--- rsync said\n").last?.components(separatedBy: "\n\n--- rsync log").first ?? ""
+        check(s.history.first?.result == "cancelled" && kept.contains("queue · cancelled") && kept.contains("no bytes moved") && said.contains("rsync"),
+              "a cancelled copy keeps a log (\(s.keptLog?.lastPathComponent ?? "none")) with what rsync said: \(said.split(separator: "\n").first ?? "-")")
+        check(s.items.allSatisfy { $0.state == .waiting }, "and nothing is left spinning")
+        await pause(0.8)
+        capture("device-cancelled")
+
+        // rsync 3.5 puts a B after the byte count; older ones don't
+        let new = Rsync.progress("     63,176,704B  20%   59.3MB/s    0:00:04  "), old = Rsync.progress("  1,234,567  45%  12.34MB/s  0:00:12 (xfr#3, to-chk=7/20)")
+        check(new?.bytes == 63_176_704 && new?.percent == 20 && old?.bytes == 1_234_567 && old?.percent == 45 && Rsync.progress("Anathema/Alternative 4/08 Regret.flac") == nil,
+              "reads rsync's progress with and without the B (\(new.map { "\($0.bytes) \($0.percent)%" } ?? "-"), \(old.map { "\($0.bytes) \($0.percent)%" } ?? "-"))")
+        s.copyQueue()
+        var seen: Int64 = 0, progressAsName = false
+        check(await until(120, { seen = max(seen, s.bytesDone); progressAsName = progressAsName || s.current.contains("%"); return !s.busy }), "the copy ends")
         check(s.error == nil, "no error copying (\(s.error ?? ""))")
+        check(seen > 0 && s.bytesDone >= seen && !progressAsName, "the byte counter moves (\(Fmt.size(s.bytesDone)) of \(Fmt.size(s.bytesTotal))) and progress lines never show as the name")
         check(s.history.first?.result == "finished" && (s.history.first?.copied ?? 0) > 0, "history: \(s.history.first.map { "\($0.result), \($0.copied) copied" } ?? "none")")
         check(s.items.count == 1 && s.items[0].missing, "only the missing entry stays queued")
         log("INFO ._ files after the copy: \(twins(vol.url))")

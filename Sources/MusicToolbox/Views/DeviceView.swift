@@ -368,20 +368,28 @@ struct DeviceView: View {
                 HStack {
                     Text("Copies").font(.title3.weight(.semibold))
                     Spacer()
+                    if let url = session.keptLog {
+                        Button("Show Log") { NSWorkspace.shared.activateFileViewerSelecting([url]) }.buttonStyle(.link)
+                    }
                     if let l = session.syncs?.lastFinished { Text("Last \(l.time)").foregroundStyle(.secondary).monospacedDigit() }
                 }
                 VStack(spacing: 0) {
                     ForEach(Array(rows.prefix(12).enumerated()), id: \.element.id) { i, h in
                         if i > 0 { Divider() }
-                        HStack(spacing: 8) {
-                            Image(systemName: h.result == "finished" ? "checkmark.circle.fill" : h.result == "cancelled" ? "stop.circle" : "xmark.circle.fill")
-                                .foregroundStyle(h.result == "finished" ? .green : h.result == "cancelled" ? .secondary : .red)
-                            Text(Self.mode(h.mode))
-                            if let n = h.copied { Text("· \(n) copied").foregroundStyle(.secondary) }
-                            if let n = h.removed, n > 0 { Text("· \(n) removed").foregroundStyle(.secondary) }
-                            if let s = h.seconds { Text("· \(Fmt.clock(s))").foregroundStyle(.secondary) }
-                            Spacer()
-                            Text(h.time).foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 8) {
+                                Image(systemName: h.result == "finished" ? "checkmark.circle.fill" : h.result == "cancelled" ? "stop.circle" : "xmark.circle.fill")
+                                    .foregroundStyle(h.result == "finished" ? .green : h.result == "cancelled" ? .secondary : .red)
+                                Text(Self.mode(h.mode))
+                                if let n = h.copied { Text("· \(n) copied").foregroundStyle(.secondary) }
+                                if let n = h.removed, n > 0 { Text("· \(n) removed").foregroundStyle(.secondary) }
+                                if let s = h.seconds { Text("· \(Fmt.clock(s))").foregroundStyle(.secondary) }
+                                Spacer()
+                                Text(h.time).foregroundStyle(.secondary)
+                            }
+                            if h.result != "finished", let d = h.detail, !d.isEmpty {
+                                Text(d).font(.callout).foregroundStyle(.secondary).lineLimit(2).truncationMode(.middle).padding(.leading, 26)
+                            }
                         }
                         .monospacedDigit().padding(.horizontal, 14).padding(.vertical, 8)
                     }

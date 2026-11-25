@@ -33,7 +33,9 @@ library onto players. Not a music player.
   The device page also lists what it cannot play (Fix has the panel repair it in place), the albums
   added since the last copy, the library albums not on the device (missing, partly there, or an older
   version, each with Queue), and the copy history. The panel can't see the device, so the app sends it
-  the device's file list when the device is connected and after every copy.
+  the device's file list when the device is connected and after every copy. A copy that fails or is
+  cancelled says in the copy history where it stopped, when the bytes last moved and what rsync said,
+  and keeps rsync's whole log (every file with its time) in `~/Library/Logs/Music Toolbox`.
 - **UI is labels only**: counts, names and controls. No hint lines, taglines or captions.
 
 All of it goes through the panel's JSON API, so it does what the web page does ([docs/PARITY.md](docs/PARITY.md)).

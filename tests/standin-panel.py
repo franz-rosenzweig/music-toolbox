@@ -257,7 +257,11 @@ class H(BaseHTTPRequestHandler):
         m = re.match(r'^/api/devices/([\w-]+)/queue/new$', path)
         if m: return self.send(200, sample('GET /api/devices/{id}/queue/new'))
         m = re.match(r'^/api/devices/([\w-]+)/syncs$', path)
-        if m: return self.send(200, sample('GET /api/devices/{id}/syncs'))
+        if m:
+            if SAMPLES: return self.send(200, sample('GET /api/devices/{id}/syncs'))
+            try: rows = [json.loads(l) for l in open(SYNCLOG, encoding='utf-8') if l.strip()][::-1]
+            except FileNotFoundError: rows = []
+            return self.send(200, {'last_finished': next((r for r in rows if r.get('result') == 'finished'), None), 'syncs': rows[:int((q.get('limit') or [30])[0])]})
         m = re.match(r'^/api/devices/([\w-]+)/missing$', path)
         if m:
             r = not_on_device()

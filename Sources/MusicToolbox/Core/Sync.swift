@@ -32,10 +32,11 @@ enum Rsync {
             + (keep + (profile.protect ?? []) + junk).map { "--exclude=\($0)" }
     }
 
-    /// "  1,234,567  45%  12.34MB/s  0:00:12 (xfr#3, to-chk=7/20)"
+    /// "  1,234,567  45%  12.34MB/s  0:00:12 (xfr#3, to-chk=7/20)"; rsync 3.5 adds a unit, "1,234,567B  45%".
+    /// The digits are grouped the locale's way (1.234.567 in some), so every separator goes.
     static func progress(_ line: String) -> (bytes: Int64, percent: Int)? {
-        guard let m = line.firstMatch(of: #/^\s*([\d,]+)\s+(\d+)%/#) else { return nil }
-        return (Int64(m.1.replacingOccurrences(of: ",", with: "")) ?? 0, Int(m.2) ?? 0)
+        guard let m = line.firstMatch(of: #/^\s*(\d[\d,.']*)B?\s+(\d+)%/#) else { return nil }
+        return (Int64(m.1.filter(\.isNumber)) ?? 0, Int(m.2) ?? 0)
     }
 }
 
@@ -111,10 +112,16 @@ final class DeviceSession {
     var dryRun: DryRun?
     var dryRunMode: Mode?
     var history: [Summary] = []
+    var keptLog: URL?
 
     private var task: Task<Void, Never>?
     private var started = Date()
     private var listed = false
+    /// What rsync said on stderr this run, the full name it was last on, and when the bytes last moved:
+    /// kept for a copy that fails or is cancelled.
+    private var rsyncErrors: [String] = []
+    private var lastName = ""
+    private var lastMoved: Date?
 
     init(_ volume: Volume) { self.volume = volume }
 
@@ -275,6 +282,9 @@ final class DeviceSession {
         bytesTotal = 0
         rate = 0
         started = Date()
+        rsyncErrors = []
+        lastName = ""
+        lastMoved = nil
         Awake.shared.hold("Copying music to a device")
         start(.copying) {
             do { try await work() } catch is CancellationError {} catch { self.error = Self.describe(error) }
@@ -309,13 +319,16 @@ final class DeviceSession {
 
     private func line(_ text: String, base: Int64, whole: Bool) {
         guard let p = Rsync.progress(text) else {
-            if !text.hasPrefix("sending") && !text.hasPrefix("sent ") && !text.hasPrefix("total ") && !text.contains("[") { current = (text as NSString).lastPathComponent }
+            if !text.hasPrefix("sending") && !text.hasPrefix("sent ") && !text.hasPrefix("total ") && !text.contains("[") {
+                current = (text as NSString).lastPathComponent
+                lastName = text
+            }
             return
         }
-        if whole { fraction = Double(p.percent) / 100; bytesDone = p.bytes } else {
-            bytesDone = base + p.bytes
-            fraction = bytesTotal > 0 ? min(1, Double(bytesDone) / Double(bytesTotal)) : nil
-        }
+        let done = whole ? p.bytes : base + p.bytes
+        if done > bytesDone { lastMoved = Date() }
+        bytesDone = done
+        fraction = whole ? Double(p.percent) / 100 : bytesTotal > 0 ? min(1, Double(bytesDone) / Double(bytesTotal)) : nil
         let t = Date().timeIntervalSince(started)
         if t > 1 { rate = Double(bytesDone) / t }
     }
@@ -335,6 +348,7 @@ final class DeviceSession {
                 try Task.checkCancellation()
                 mark(item, .copying)
                 current = item.title
+                lastName = item.entry
                 let (status, why) = try await copy(item.entry, remote: remote, rsync: rsync, log: log, base: base)
                 if status == 0 || status == 24 { copied.append(item.entry); mark(item, .done); base += item.size }
                 else { failed.append(item.entry + (why.isEmpty ? "" : " (\(why))")); mark(item, .failed) }
@@ -342,6 +356,7 @@ final class DeviceSession {
             if !failed.isEmpty { result = "failed" }
         } catch is CancellationError {
             result = "cancelled"
+            for i in items.indices where items[i].state == .copying { items[i].state = .waiting }
         }
         await Task { await self.finish(.queue, result, copied: copied, log: log,
                                        detail: failed.isEmpty ? "\(todo.count) queued item(s)" : "\(failed.count) of \(todo.count) failed: \(failed.joined(separator: "; "))") }.value
@@ -366,6 +381,7 @@ final class DeviceSession {
             let lines = split.feed(data)
             Task { @MainActor in for l in lines { self.line(l, base: base, whole: false) } }
         }
+        keep(o.errText)
         try Task.checkCancellation()
         return (o.status, o.status == 0 ? "" : String(o.errText.split(separator: "\n").first ?? "rsync exit \(o.status)"))
     }
@@ -391,6 +407,7 @@ final class DeviceSession {
                 let lines = split.feed(data)
                 Task { @MainActor in for l in lines { self.line(l, base: 0, whole: true) } }
             }
+            keep(o.errText)
             try Task.checkCancellation()
             if o.status != 0 && o.status != 24 { result = "failed"; detail = "rsync exit \(o.status)"; error = "The copy stopped" }
         } catch is CancellationError {
@@ -400,9 +417,53 @@ final class DeviceSession {
         if result == "finished" { fraction = 1; await read() }
     }
 
+    private func keep(_ errText: String) {
+        rsyncErrors += errText.split(separator: "\n").map(String.init)
+        if rsyncErrors.count > 60 { rsyncErrors.removeFirst(rsyncErrors.count - 60) }
+    }
+
+    /// Where a copy that did not finish stood: when the bytes last moved, the file it was on, and the
+    /// first things rsync said (its last line is only the exit code).
+    private func stopNote() -> String {
+        let t = DateFormatter()
+        t.dateFormat = "HH:mm:ss"
+        var parts = [lastMoved.map { "bytes last moved \(t.string(from: $0))" } ?? "no bytes moved"]
+        if !lastName.isEmpty { parts.append("at \(lastName)") }
+        parts += rsyncErrors.prefix(2)
+        return parts.joined(separator: " · ")
+    }
+
+    /// The whole story of a copy that failed or was cancelled, in ~/Library/Logs/Music Toolbox: rsync's
+    /// own log, each file with its time, and everything it said. The last 20 are kept.
+    nonisolated static func keepLog(_ log: URL, name: String, header: String, errors: [String]) -> URL? {
+        let env = ProcessInfo.processInfo.environment
+        let dir = env["MUSIC_SELFTEST"].map { URL(fileURLWithPath: $0).appendingPathComponent("logs", isDirectory: true) }
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Music Toolbox", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let rsyncLog = (try? Data(contentsOf: log)).map { String(decoding: $0, as: UTF8.self) } ?? ""
+        let url = dir.appendingPathComponent(name)
+        guard (try? (header + "\n\n--- rsync said\n" + errors.joined(separator: "\n") + "\n\n--- rsync log\n" + rsyncLog)
+            .write(to: url, atomically: true, encoding: .utf8)) != nil else { return nil }
+        let logs = ((try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []).filter { $0.pathExtension == "log" }
+        for old in logs.sorted(by: { $0.lastPathComponent > $1.lastPathComponent }).dropFirst(20) { try? FileManager.default.removeItem(at: old) }
+        return url
+    }
+
     /// Clears macOS's ._ twins (exFAT keeps xattrs as files), takes the copied entries off the queue
     /// and tells the panel. Runs even when the copy was cancelled, so what did copy is not copied again.
+    /// A copy that did not finish also leaves a note in the panel's log and a full log on this Mac.
     private func finish(_ m: Mode, _ result: String, copied: [String], log: URL, detail: String) async {
+        var detail = detail
+        if result != "finished" {
+            detail += " · " + stopNote()
+            let f = DateFormatter()
+            f.dateFormat = "yyyy-MM-dd HH:mm:ss"
+            let name = f.string(from: Date()).replacingOccurrences(of: ":", with: "") + " \(m.rawValue) \(result).log"
+            let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+            let header = "Music Toolbox \(version) · \(volume.title) · \(m.rawValue) · \(result)\n\(f.string(from: started)) to \(f.string(from: Date()))\n\(detail)"
+            let errors = rsyncErrors
+            keptLog = await Task.detached { Self.keepLog(log, name: name, header: header, errors: errors) }.value
+        }
         _ = try? await Proc.run("/usr/bin/dot_clean", ["-m", volume.url.path])
         let panel = Config.panel
         try? await panel?.complete(profile.id, copied)
